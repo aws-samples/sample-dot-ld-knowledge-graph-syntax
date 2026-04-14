@@ -1,0 +1,120 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "DOT-LD",
+  "scopeName": "text.html.markdown.dotld",
+  "patterns": [
+    {
+      "include": "#dotld-config-block"
+    },
+    {
+      "include": "#dotld-relationship"
+    },
+    {
+      "include": "#dotld-entity-reference"
+    },
+    {
+      "include": "#dotld-comment"
+    }
+  ],
+  "repository": {
+    "dotld-config-block": {
+      "begin": "^(::config)\\s*$",
+      "end": "^(::)\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.dotld"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.dotld"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#dotld-comment"
+        },
+        {
+          "name": "meta.style-definition.dotld",
+          "match": "^\\s*([\\w-]+):\\s*([\\w-]+),\\s*(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}),\\s*(\\d+)\\s*$",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.dotld"
+            },
+            "2": {
+              "name": "support.constant.dotld"
+            },
+            "3": {
+              "name": "constant.numeric.color.dotld"
+            },
+            "4": {
+              "name": "constant.numeric.dotld"
+            }
+          }
+        },
+        {
+          "name": "meta.entity-definition.dotld",
+          "match": "^\\s*([\\w-]+):\\s*type=([\\w-]+)\\s*$",
+          "captures": {
+            "1": {
+              "name": "variable.other.dotld"
+            },
+            "2": {
+              "name": "entity.name.type.dotld"
+            }
+          }
+        }
+      ]
+    },
+    "dotld-relationship": {
+      "name": "meta.relationship.dotld",
+      "begin": "(::rel)\\s+",
+      "end": "(::)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.dotld"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.dotld"
+        }
+      },
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.dotld",
+          "match": "->"
+        },
+        {
+          "name": "string.quoted.other.dotld",
+          "match": "\\[([^\\]]+)\\]",
+          "captures": {
+            "1": {
+              "name": "string.unquoted.dotld"
+            }
+          }
+        },
+        {
+          "name": "variable.other.dotld",
+          "match": "\\b[\\w-]+\\b"
+        }
+      ]
+    },
+    "dotld-entity-reference": {
+      "name": "meta.entity-reference.dotld",
+      "match": "\\[\\[([^\\]]+)\\]\\]",
+      "captures": {
+        "0": {
+          "name": "markup.bold.dotld"
+        },
+        "1": {
+          "name": "entity.name.tag.dotld"
+        }
+      }
+    },
+    "dotld-comment": {
+      "name": "comment.line.double-slash.dotld",
+      "match": "//.*$"
+    }
+  }
+}

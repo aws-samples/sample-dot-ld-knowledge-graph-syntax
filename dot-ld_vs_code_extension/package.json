@@ -1,0 +1,111 @@
+{
+  "name": "dotld-vscode",
+  "displayName": "DOT-LD",
+  "description": "Syntax highlighting and graph visualization for DOT-LD (DOT Linked Data) markdown extension",
+  "version": "0.1.0",
+  "publisher": "dotld",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aws-samples/sample-dot-ld-knowledge-graph-syntax/tree/main/dot-ld_vs_code_extension"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization"
+  ],
+  "keywords": [
+    "markdown",
+    "graph",
+    "visualization",
+    "knowledge graph",
+    "documentation"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "dotld",
+        "aliases": [
+          "DOT-LD",
+          "dotld"
+        ],
+        "extensions": [
+          ".md"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "dotld",
+        "scopeName": "text.html.markdown.dotld",
+        "path": "./syntaxes/dotld.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "dotld.showGraph",
+        "title": "Graph View",
+        "category": "DOT-LD",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "dotld.refreshGraph",
+        "title": "DOT-LD: Refresh Graph",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "dotld.showGraph",
+          "when": "resourceExtname == .md",
+          "group": "navigation",
+          "alt": "dotld.showGraph"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DOT-LD",
+      "properties": {
+        "dotld.autoShowGraph": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically show graph visualization when opening DOT-LD files"
+        },
+        "dotld.graphLayout": {
+          "type": "string",
+          "enum": [
+            "cose",
+            "circle",
+            "grid",
+            "breadthfirst"
+          ],
+          "default": "cose",
+          "description": "Default graph layout algorithm"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}

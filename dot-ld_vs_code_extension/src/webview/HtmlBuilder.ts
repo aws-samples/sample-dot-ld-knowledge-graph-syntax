@@ -28,7 +28,7 @@ export class HtmlBuilder {
     public addElement(
         tag: string,
         attributes: Record<string, string> = {},
-        content: string = ''
+        content = ''
     ): HtmlBuilder {
         let html = '<' + tag;
         
@@ -67,7 +67,6 @@ export class HtmlBuilder {
      * Escape HTML special characters
      */
     public static escape(text: string): string {
-        const div = { textContent: text };
         // Simple escaping for common cases
         return text
             .replace(/&/g, '&amp;')

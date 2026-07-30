@@ -52,9 +52,23 @@ The [[ChillerSystem]] uses a [[Pump]] and is managed by a [[Controller]].
 
 1. Open a markdown file with DOT-LD notation
 2. Click the graph icon in the editor title bar, or
-3. Run command: **DOT-LD: Show Graph Visualization**
+3. Run command: **DOT-LD: Graph View**
 
 The graph will appear in a side panel and update automatically as you edit.
+
+### Works Alongside the Built-in Markdown Preview
+
+This extension does **not** take over the `.md` file association. Your Markdown
+files keep the `markdown` language mode, so VS Code's built-in Markdown preview
+button and all other Markdown tooling continue to work as normal.
+
+The DOT-LD graph icon only appears for Markdown files that actually contain
+DOT-LD notation (a `::config` block or a `::rel` statement), and it sits to the
+right of the built-in preview icons. Plain Markdown files show only the standard
+preview button.
+
+Syntax highlighting is applied as an *injection* on top of the standard Markdown
+grammar, so headings, code fences, and emphasis all still highlight correctly.
 
 ## DOT-LD Syntax Reference
 
@@ -106,14 +120,18 @@ Example:
 
 ## Extension Settings
 
-This extension contributes the following settings:
+This extension declares the following settings:
 
 * `dotld.autoShowGraph`: Automatically show graph visualization when opening DOT-LD files (default: `false`)
 * `dotld.graphLayout`: Default graph layout algorithm - `cose`, `circle`, `grid`, or `breadthfirst` (default: `cose`)
 
+> **Note:** These settings are declared but not yet read by the extension, so
+> changing them currently has no effect. Wiring them up is tracked as a known
+> issue below.
+
 ## Commands
 
-* `DOT-LD: Show Graph Visualization` - Open the graph visualization panel
+* `DOT-LD: Graph View` - Open the graph visualization panel
 * `DOT-LD: Refresh Graph` - Refresh the current graph visualization
 
 ## Installation
@@ -141,8 +159,22 @@ This extension contributes the following settings:
 
 - Large graphs (>100 nodes) may experience performance issues
 - Graph layout may need manual adjustment for complex hierarchies
+- The `dotld.autoShowGraph` and `dotld.graphLayout` settings are declared in the
+  manifest but are not yet consumed by the extension code
 
 ## Release Notes
+
+### Unreleased
+
+- Fixed: the extension no longer registers its own language for `.md`, which was
+  overriding the `markdown` language mode and hiding VS Code's built-in Markdown
+  preview button. Markdown files now keep their normal language mode and the
+  built-in preview works alongside the DOT-LD graph view.
+- The graph icon in the editor title bar is now only shown for Markdown files
+  that actually contain DOT-LD notation.
+- Syntax highlighting is now a pure injection into the Markdown grammar, so
+  standard Markdown tokenization is preserved.
+- Added the missing `tsconfig.json` required by `npm run compile`.
 
 ### 0.1.0
 

@@ -65,10 +65,15 @@ The editor will automatically highlight:
 
 Click the graph icon (📊) in the editor title bar, or:
 - Open Command Palette (`Ctrl+Shift+P`)
-- Type "DOT-LD: Show Graph"
+- Type "DOT-LD: Graph View"
 - Press Enter
 
 The graph will appear in a side panel showing your entities and relationships.
+
+> The graph icon only appears on Markdown files that contain DOT-LD notation
+> (a `::config` block or a `::rel` statement). Your Markdown files keep their
+> normal `markdown` language mode, so VS Code's built-in Markdown preview button
+> stays available on every file, including plain Markdown.
 
 ### 4. Interact with the Graph
 
@@ -153,15 +158,31 @@ For large systems, create separate markdown files for different subsystems and l
 
 ## Troubleshooting
 
-### Graph Not Showing
-- Ensure your file contains `::config` blocks or `::rel` statements
-- Check that entity types are defined before they're referenced
-- Try clicking "Refresh Graph" button
+### Graph Icon Not Showing
+- Ensure your file contains `::config` blocks or `::rel` statements — the icon is
+  hidden on Markdown files with no DOT-LD notation
+- Confirm the editor's language mode is **Markdown** (shown in the status bar).
+  If a `files.associations` entry maps `*.md` to another language, the icon and
+  the built-in preview button will both be hidden
+- Try clicking the "Refresh Graph" button
 
 ### Syntax Highlighting Not Working
 - Verify the file has `.md` extension
 - Check that DOT-LD notation is correctly formatted
 - Restart VS Code if needed
+
+### Changes to the Extension Aren't Taking Effect
+"Developer: Reload Window" reloads the window but does **not** rebuild or
+reinstall the extension. After editing the source you must recompile, and if you
+have a packaged copy installed you must reinstall it:
+```bash
+npm run compile
+vsce package
+code --install-extension dotld-vscode-0.1.0.vsix --force
+```
+Then reload the window. Alternatively, open this folder in VS Code and press `F5`
+to run straight from source (disable any installed copy first so the two builds
+don't both register the same commands).
 
 ### TypeScript Compilation Errors
 During development, if you see errors:

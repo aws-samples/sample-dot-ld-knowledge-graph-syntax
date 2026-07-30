@@ -23,23 +23,12 @@
     "documentation"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
   "contributes": {
-    "languages": [
-      {
-        "id": "dotld",
-        "aliases": [
-          "DOT-LD",
-          "dotld"
-        ],
-        "extensions": [
-          ".md"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
     "grammars": [
       {
-        "language": "dotld",
         "scopeName": "text.html.markdown.dotld",
         "path": "./syntaxes/dotld.tmLanguage.json",
         "injectTo": [
@@ -64,9 +53,8 @@
       "editor/title": [
         {
           "command": "dotld.showGraph",
-          "when": "resourceExtname == .md",
-          "group": "navigation",
-          "alt": "dotld.showGraph"
+          "when": "editorLangId == markdown && dotld.hasNotation",
+          "group": "navigation@100"
         }
       ]
     },

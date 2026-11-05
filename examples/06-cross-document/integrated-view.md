@@ -86,6 +86,8 @@ The [[UPS_System]] bridges the brief gap until the [[Generator]] starts, and the
 generator power.
 
 ::rel UPS_System -> ChillerSystem [sustains_during_outage] ::
+::rel Generator -> TransferSwitch [connects_via] ::
+::rel TransferSwitch -> MainSwitchboard [switches_power_to] ::
 ::rel Generator -> ChillerSystem [backs_up_power_for] ::
 ::rel Generator -> CRAC_Unit [backs_up_power_for] ::
 

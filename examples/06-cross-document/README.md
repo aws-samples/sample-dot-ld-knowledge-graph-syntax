@@ -11,6 +11,7 @@ In large projects, documentation is often split across multiple files. DOT-LD al
 This example consists of three documents:
 1. **electrical-systems.md** - Power distribution documentation
 2. **mechanical-systems.md** - Cooling system documentation
+3. **integrated-view.md** - How the electrical and mechanical systems interact
 
 Each document can be read independently, but together they form a complete knowledge graph of the data center facility.
 

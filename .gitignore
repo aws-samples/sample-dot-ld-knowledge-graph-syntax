@@ -10,3 +10,6 @@ out/
 
 # IDE settings
 .vscode/
+
+# Playwright MCP browser artifacts
+.playwright-mcp/

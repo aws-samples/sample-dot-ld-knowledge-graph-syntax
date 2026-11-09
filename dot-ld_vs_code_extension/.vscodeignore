@@ -1,0 +1,15 @@
+# Sources, tests and tooling are not needed in the packaged extension
+src/**
+out/test/**
+**/*.map
+**/*.ts
+tsconfig.json
+.eslintrc.json
+.vscode/**
+examples/**
+
+# Ship only the Cytoscape build the webview loads (see GraphPanel.ts localResourceRoots)
+node_modules/**
+!node_modules/cytoscape/package.json
+!node_modules/cytoscape/LICENSE
+!node_modules/cytoscape/dist/cytoscape.min.js

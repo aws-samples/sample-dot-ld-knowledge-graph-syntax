@@ -18,8 +18,11 @@ Full syntax highlighting support for DOT-LD notation:
 
 - Real-time graph visualization using Cytoscape.js
 - Automatic layout with customizable node styles
-- Live updates as you edit your document
-- Interactive graph controls (fit, re-layout, zoom)
+- Live updates as you edit your document, keeping node positions stable
+- Node details: type, properties and connections
+- Search, layout switching, path finder and relationship-type filter
+- Graph analysis: community detection, centrality and link suggestions
+- PNG export
 
 ## Usage
 
@@ -88,13 +91,14 @@ Pump: type=component
 ::
 ```
 
-**Supported shapes:**
-- `round-rectangle`
-- `ellipse`
-- `diamond`
-- `hexagon`
-- `rectangle`
-- `triangle`
+**Supported shapes** (spec §3.2): `round-rectangle`, `rectangle`, `ellipse`, `circle`, `diamond`.
+Colors use `#RRGGBB` format. Entity assignments can add properties, which appear in the node details:
+
+```markdown
+Pump: type=component, vendor=Acme, model="CP 200"
+```
+
+Several `::config` blocks in one document are merged in order. Later definitions override earlier ones.
 
 ### Entity References
 
@@ -104,6 +108,8 @@ Reference entities inline in your text using double brackets:
 The [[ChillerSystem]] connects to the [[CoolingTower]].
 ```
 
+Entity names start with a letter and contain only letters, digits, `_` or `-`.
+
 ### Relationships
 
 Define relationships between entities:
@@ -112,22 +118,30 @@ Define relationships between entities:
 ::rel Source -> Target [label] ::
 ```
 
+Arrow directions: `->`, `<-` (stored as `Target -> Source`) and `<->` (drawn with arrowheads on both ends). The label is optional.
+
 Example:
 ```markdown
 ::rel ChillerSystem -> Pump [uses] ::
 ::rel Controller -> ChillerSystem [controls] ::
+::rel ServiceA <-> ServiceB [communicates_with] ::
 ```
+
+DOT-LD syntax inside code fences and inline code is treated as example text and is not added to the graph.
 
 ## Extension Settings
 
-This extension declares the following settings:
-
-* `dotld.autoShowGraph`: Automatically show graph visualization when opening DOT-LD files (default: `false`)
 * `dotld.graphLayout`: Default graph layout algorithm - `cose`, `circle`, `grid`, or `breadthfirst` (default: `cose`)
+* `dotld.autoShowGraph`: Automatically show graph visualization when opening DOT-LD files (default: `false`). Declared but not yet read by the extension.
 
-> **Note:** These settings are declared but not yet read by the extension, so
-> changing them currently has no effect. Wiring them up is tracked as a known
-> issue below.
+## Security
+
+The graph panel treats document content as untrusted:
+
+- The webview HTML is a fixed template. Graph data is sent to it with `postMessage` and rendered with DOM APIs and `textContent`, so entity names, labels and property values can't inject markup.
+- A Content Security Policy (`default-src 'none'`) allows only this extension's own script and style files. Scripts also need a nonce that changes on every load. Inline scripts, inline event handlers, inline styles and network requests are blocked.
+- Cytoscape.js is bundled with the extension as a pinned npm dependency instead of being loaded from a CDN. `localResourceRoots` limits the webview to the `media/` folder and the Cytoscape build.
+- The parser accepts only valid DOT-LD names, shapes and `#RRGGBB` colors (spec §4.2 and §3.2).
 
 ## Commands
 
@@ -147,9 +161,17 @@ This extension declares the following settings:
 ### From Source
 
 1. Clone this repository
-2. Run `npm install`
+2. Run `npm ci`
 3. Run `npm run compile`
 4. Press F5 to open a new VS Code window with the extension loaded
+
+### Testing
+
+```bash
+npm test      # compiles, then runs the parser tests with node:test
+npm run lint
+npm audit
+```
 
 ## Requirements
 
@@ -159,22 +181,20 @@ This extension declares the following settings:
 
 - Large graphs (>100 nodes) may experience performance issues
 - Graph layout may need manual adjustment for complex hierarchies
-- The `dotld.autoShowGraph` and `dotld.graphLayout` settings are declared in the
-  manifest but are not yet consumed by the extension code
+- The `dotld.autoShowGraph` setting is declared in the manifest but is not yet read by the extension
 
 ## Release Notes
 
 ### Unreleased
 
-- Fixed: the extension no longer registers its own language for `.md`, which was
-  overriding the `markdown` language mode and hiding VS Code's built-in Markdown
-  preview button. Markdown files now keep their normal language mode and the
-  built-in preview works alongside the DOT-LD graph view.
-- The graph icon in the editor title bar is now only shown for Markdown files
-  that actually contain DOT-LD notation.
-- Syntax highlighting is now a pure injection into the Markdown grammar, so
-  standard Markdown tokenization is preserved.
-- Added the missing `tsconfig.json` required by `npm run compile`.
+- Markdown files keep their normal `markdown` language mode, so VS Code's built-in Markdown preview works alongside the DOT-LD graph view.
+- The graph icon in the editor title bar appears only for Markdown files that contain DOT-LD notation.
+- Syntax highlighting is a pure injection into the Markdown grammar, so standard Markdown tokenization is preserved.
+- Full DOT-LD v1.0 support: `->`, `<-` and `<->` arrows, hyphenated names, multiple `::config` blocks, entity properties, the `circle` shape, and validation of names, shapes, colors and sizes.
+- The graph panel uses a bundled Cytoscape.js, a strict Content Security Policy and DOM-only rendering (see Security).
+- The `dotld.graphLayout` setting selects the initial layout.
+- Node details show entity properties and connections.
+- Parser tests (`npm test`).
 
 ### 0.1.0
 
@@ -188,7 +208,13 @@ Initial release:
 
 DOT-LD (DOT Linked Data) is a markdown extension that enables embedding formal knowledge graphs directly within technical documentation. It combines human-readable content with machine-readable semantic structures.
 
-For more information about DOT-LD, see the specification document.
+For more information about DOT-LD, see the [specification](../docs/syntax-specification.md).
+
+## Third-party libraries
+
+| Library | Version | License |
+|---|---|---|
+| [Cytoscape.js](https://js.cytoscape.org/) | 3.34.4 | MIT |
 
 ## Contributing
 

@@ -1,0 +1,2857 @@
+<!DOCTYPE html>
+<!--
+  DOT-LD Visualization Example
+  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+  SPDX-License-Identifier: MIT-0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!--
+      @secure_recommendation: Restrictive Content Security Policy (defense in depth on top of DOMPurify).
+      - default-src 'none': nothing loads unless listed below.
+      - script-src: only the three pinned CDN files and the inline app script (matched by its SHA-256 hash).
+        No 'unsafe-inline' or 'unsafe-eval'. After ANY edit to the inline app script, regenerate the hash
+        with: python3 update-csp-hash.py (see README.md, "Content Security Policy").
+      - style-src 'unsafe-inline': the app and Cytoscape set styles from JavaScript. Styles cannot run code,
+        and DOMPurify strips style tags and attributes from the preview.
+      - img-src data: https: lets markdown images from https URLs render in the preview.
+      - frame-ancestors / X-Frame-Options cannot be set from a <meta> tag; set them as HTTP headers when hosting.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-NXEKWh85mW+IerUHZRqkwXcQ+KPqTAhrCtURwAmkd1s=' https://cdn.jsdelivr.net/npm/cytoscape@3.34.4/dist/cytoscape.min.js https://cdn.jsdelivr.net/npm/marked@18.1.3/lib/marked.umd.js https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js; style-src 'unsafe-inline'; img-src data: https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOT-LD Visualization Example</title>
+    <!--
+      @secure_recommendation: Third-party scripts are pinned to exact versions and verified
+      with Subresource Integrity (SHA-384). If a CDN serves different bytes, the browser
+      refuses to run them. When upgrading, recompute each hash with:
+        curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.4/dist/cytoscape.min.js"
+            integrity="sha384-lyd1lDWZ623YSUJ/wMQH50y+T81dWKJk7ZoFdYWXQS83b0+QpW0pgdfXEnQnXL/X"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@18.1.3/lib/marked.umd.js"
+            integrity="sha384-tp/syYhgK+FeVVrz2SPmgKX5atVZ8P8hReAvOPUn58M265VNy1IbdmZAY7Jmd0gF"
+            crossorigin="anonymous"></script>
+    <!-- @secure_recommendation: marked does not sanitize HTML; DOMPurify sanitizes all preview output. -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js"
+            integrity="sha384-P0JNneQf81HOl9VwNXK76cQ9VMD6Nfsnepxb0cCOg8+UzEdzgPHAPV4wVQrvYQSx"
+            crossorigin="anonymous"></script>
+    <style>
+        /* 
+        * Modern CSS for Graph Editor Application 
+        * Features:
+        * - CSS Variables for theming
+        * - Data attributes for semantic syntax highlighting
+        * - Dark mode & accessibility features
+        * - Performance optimizations
+        */
+
+        /* ========== CSS Variables ========== */
+        :root {
+            /* Layout variables */
+            --header-height: 50px;
+            --panel-header-height: 40px;
+            --hover-transition: all 0.2s;
+            --panel-transition: all 0.3s ease;
+            
+            /* Typography */
+            --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'Monaco', 'Menlo', 'Consolas', monospace;
+            
+            /* Light theme colors */
+            --bg-primary: #fff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #fafafa;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --border-primary: #e0e0e0;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            
+            /* Panel backgrounds */
+            --preview-bg: var(--bg-primary);
+            --graph-bg: var(--bg-tertiary);
+            --editor-bg: #2d2d2d;
+            --editor-text: #d4d4d4;
+            --text-light-editor: #999;
+            
+            /* Syntax highlighting colors */
+            --syntax-config: #ff6b6b;
+            --syntax-inline: #4fc3f7;
+            --syntax-node: #f06292;
+            --syntax-type: #66d9ef;
+            --syntax-rel: #81c784;
+            --syntax-arrow: #ffb74d;
+            --syntax-label: #ba68c8;
+            --syntax-comment: #6a737d;
+            --syntax-heading: #fff;
+            
+            /* Button colors */
+            --btn-blue: #2196F3;
+            --btn-blue-hover: #1976D2;
+            --btn-green: #4CAF50;
+            --btn-green-hover: #45a049;
+            --btn-purple: #9C27B0;
+            --btn-purple-hover: #7B1FA2;
+            
+            /* Node reference colors */
+            --node-ref-bg: #e3f2fd;
+            --node-ref-bg-hover: #bbdefb;
+            --node-ref-color: #1976d2;
+            --node-ref-highlight: #ffeb3b;
+        }
+
+        /* Dark theme colors */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2d2d2d;
+                --bg-tertiary: #242424;
+                --text-primary: #e0e0e0;
+                --text-secondary: #a0a0a0;
+                --border-primary: #404040;
+                --shadow-color: rgba(0, 0, 0, 0.3);
+                
+                /* Panel backgrounds */
+                --preview-bg: var(--bg-secondary);
+                --graph-bg: var(--bg-primary);
+                
+                /* Node ref colors */
+                --node-ref-bg: #1e3a5f;
+                --node-ref-bg-hover: #2b4c7d;
+                --node-ref-color: #5fc3f7;
+            }
+        }
+
+        /* ========== Global Reset ========== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ========== Base Styles ========== */
+        body {
+            font-family: var(--font-system);
+            height: 100vh;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ========== Layout Components ========== */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+            transition: var(--panel-transition);
+            contain: layout style;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom scrollbars */
+        .panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        .panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Panel content */
+        .panel-content {
+            padding: 20px;
+            height: 100%;
+            position: relative;
+            overflow: auto;
+            contain: content;
+        }
+
+        /* Panel header */
+        .panel-header {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            height: var(--panel-header-height);
+            background: inherit;
+            z-index: 10;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        /* ========== App Header ========== */
+        .app-header {
+            background: var(--btn-blue-hover);
+            color: white;
+            padding: 10px 20px;
+            box-shadow: 0 2px 4px var(--shadow-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        /* ========== Panels Specific Styles ========== */
+        /* Editor Panel */
+        .editor-panel {
+            flex: 0;
+            width: 0;
+            background: var(--editor-bg);
+            color: #fff;
+            overflow: hidden;
+            will-change: flex, width;
+        }
+
+        .editor-panel.open {
+            flex: 1;
+        }
+
+        .editor-panel .panel-header {
+            color: var(--text-light-editor);
+            background: var(--editor-bg);
+        }
+
+        /* Editor panel scrollbar */
+        .editor-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .editor-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .editor-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            background: var(--preview-bg);
+            border-left: 1px solid var(--border-primary);
+            border-right: 1px solid var(--border-primary);
+        }
+
+        /* Graph Panel */
+        .graph-panel {
+            background: var(--graph-bg);
+        }
+
+        /* ========== Editor ========== */
+        #editor, #editor-highlight {
+            position: absolute;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: calc(100% - var(--header-height));
+            font-family: var(--font-mono);
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 10px;
+            margin: 0;
+            border: none;
+            outline: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        #editor {
+            background: transparent;
+            color: transparent;
+            caret-color: #fff;
+            resize: none;
+            z-index: 3;
+        }
+
+        #editor-highlight {
+            background: var(--editor-bg);
+            color: var(--editor-text);
+            z-index: 2;
+            pointer-events: none;
+            overflow: auto;
+        }
+
+        /* ========== Graph Display ========== */
+        #cy {
+            width: 100%;
+            height: calc(100% - var(--header-height));
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            margin-top: 10px;
+            background: var(--bg-primary);
+            position: relative;
+        }
+
+        /* ========== Preview Content Styling ========== */
+        #preview {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        /* Use :is() for headings */
+        #preview :is(h1, h2, h3) {
+            margin: 20px 0 10px 0;
+        }
+
+        #preview p {
+            margin: 10px 0;
+        }
+
+        /* Table styling */
+        #preview table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        #preview table :is(th, td) {
+            border: 1px solid var(--border-primary);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        #preview table th {
+            background-color: var(--bg-tertiary);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        #preview table tr:nth-child(even) {
+            background-color: var(--bg-tertiary);
+        }
+
+        #preview table tr:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        /* ========== Buttons ========== */
+        button {
+            /* CSS custom properties for button variants */
+            --btn-bg: var(--btn-blue);
+            --btn-hover: var(--btn-blue-hover);
+            --btn-shadow: var(--shadow-color);
+            
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            background: var(--btn-bg);
+            transition: background-color 0.2s, transform 0.1s, box-shadow 0.1s;
+            position: relative;
+        }
+
+        button:hover {
+            background: var(--btn-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px var(--btn-shadow);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px var(--btn-shadow);
+        }
+
+        button:focus-visible {
+            outline: 2px solid var(--btn-bg);
+            outline-offset: 2px;
+        }
+
+        .panel-header button {
+            height: 30px;
+        }
+
+        /* Button variants */
+        .toggle-editor {
+            --btn-bg: var(--btn-blue);
+            --btn-hover: var(--btn-blue-hover);
+            padding: 6px 16px;
+            font-size: 14px;
+        }
+
+        .auto-link-btn {
+            --btn-bg: var(--btn-green);
+            --btn-hover: var(--btn-green-hover);
+        }
+
+        .redraw-graph-btn {
+            --btn-bg: var(--btn-purple);
+            --btn-hover: var(--btn-purple-hover);
+        }
+
+        /* ========== Node References ========== */
+        .node-ref {
+            background: var(--node-ref-bg);
+            color: var(--node-ref-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: var(--hover-transition);
+            font-weight: 500;
+            transform: translateZ(0); /* GPU acceleration */
+        }
+
+        .node-ref:hover {
+            background: var(--node-ref-bg-hover);
+        }
+
+        .node-ref.highlighted {
+            background: var(--node-ref-highlight);
+            color: var(--text-primary);
+        }
+
+        .node-ref:focus-visible {
+            outline: 2px solid var(--node-ref-color);
+            outline-offset: 2px;
+        }
+
+        /* ========== Syntax Help Modal ========== */
+        .syntax-help {
+            /* Hidden by default */
+            display: none;
+            visibility: hidden;
+            opacity: 0;
+            
+            position: fixed;
+            background: var(--editor-bg);
+            padding: 30px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15), 0 4px 8px rgba(255, 255, 255, 0.1);
+            z-index: 1001;
+            max-width: 450px;
+            color: var(--editor-text);
+            font-family: var(--font-system);
+        }
+
+        .syntax-help.show {
+            display: block;
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .syntax-help h3 {
+            color: #fff;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .syntax-help h4 {
+            color: var(--syntax-inline);
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .syntax-help p {
+            margin-bottom: 15px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .syntax-help pre {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin: 10px 0;
+            font-family: var(--font-mono);
+            border: 1px solid #3a3a3a;
+            color: var(--editor-text);
+            line-height: 1.4;
+        }
+
+        .syntax-help button {
+            background: var(--syntax-inline);
+            color: #1e1e1e;
+            padding: 8px 20px;
+            margin-top: 15px;
+            font-weight: 500;
+            display: block;
+            margin-left: auto;
+        }
+
+        .syntax-help button:hover {
+            background: #29b6f6;
+        }
+
+        /* ========== Syntax Highlighting Colors ========== */
+        .syntax-config { color: var(--syntax-config); font-weight: bold; }
+        .syntax-inline-node { color: var(--syntax-inline); font-weight: bold; }
+        .syntax-node { color: var(--syntax-node); }
+        .syntax-type { color: var(--syntax-type); }
+        .syntax-rel { color: var(--syntax-rel); }
+        .syntax-arrow { color: var(--syntax-arrow); }
+        .syntax-label { color: var(--syntax-label); }
+        .syntax-property { color: var(--syntax-node); }
+        .syntax-type-property { color: var(--syntax-type); }
+        .syntax-markdown-heading { color: var(--syntax-heading); font-weight: bold; }
+        .syntax-comment { color: var(--syntax-comment); font-style: italic; }
+
+        /* ========== Responsive Design ========== */
+        @media (max-width: 768px) {
+            :root {
+                --header-height: 40px;
+                --panel-header-height: 35px;
+            }
+            
+            .panel-content {
+                padding: 10px;
+            }
+            
+            .app-header {
+                padding: 8px 15px;
+            }
+            
+            .app-title {
+                font-size: 16px;
+            }
+            
+            button {
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+        }
+
+        /* ========== Print Styles ========== */
+        @media print {
+            .editor-panel,
+            .app-header,
+            .panel-header button {
+                display: none;
+            }
+            
+            .preview-panel {
+                border: none;
+                width: 100%;
+                flex: 1;
+            }
+            
+            #preview {
+                color: black;
+            }
+        }
+
+        /* ========== Accessibility Features ========== */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        @media (prefers-contrast: high) {
+            :root {
+                --border-primary: #000;
+                --shadow-color: rgba(0, 0, 0, 0.5);
+            }
+            
+            button {
+                border: 2px solid currentColor;
+            }
+        }
+
+        /* ========== Performance Optimizations ========== */
+        @supports (content-visibility: auto) {
+            .preview-panel .panel-content > * {
+                content-visibility: auto;
+                contain-intrinsic-size: 0 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-header">
+        <div class="app-title">DOT-LD Visualization Example</div>
+    </div>
+    
+    <div class="container">
+        <div class="panel editor-panel" id="editorPanel">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <span>Editor</span>
+                    <button type="button" class="auto-link-btn">🔗 Auto-Link Entities</button>
+                </div>
+                <div id="editor-highlight"></div>
+                <textarea id="editor">::config
+// Style definitions
+equipment: round-rectangle, #4A90E2, 120
+component: ellipse, #7ED321, 100
+control: diamond, #F5A623, 110
+sensor: round-rectangle, #BD10E0, 90
+network: rectangle, #50E3C2, 100
+
+// Entity definitions  
+ChillerSystem: type=equipment
+CoolingTower: type=equipment
+CondenserPump: type=component
+ChilledPump: type=component
+Compressor: type=component
+Evaporator: type=component
+Condenser: type=component
+ExpansionValve: type=component
+Controller: type=control
+TempSensor: type=sensor
+PressureSensor: type=sensor
+SCADA: type=network
+::
+
+## System Overview
+
+The chiller system includes several components that work together to provide cooling.
+
+The cooling tower removes heat from the condenser via the condenser water circuit. The condenser water pump circulates water between the cooling tower and condenser, while the chilled water pump circulates chilled water from the evaporator to building loads.
+
+::rel ChillerSystem -> CoolingTower [requires] ::
+::rel ChillerSystem -> CondenserPump [uses] ::
+::rel ChillerSystem -> ChilledPump [uses] ::
+::rel CoolingTower -> CondenserPump [connects to] ::
+::rel CondenserPump -> Condenser [pumps water to] ::
+::rel Condenser -> CoolingTower [returns heated water to] ::
+::rel ChilledPump -> Evaporator [circulates through] ::
+
+## Component Specifications
+
+| Component | Type | Capacity | Power |
+|-----------|------|----------|-------|
+| [[ChillerSystem]] | Equipment | 500 tons | 450 kW |
+| [[CoolingTower]] | Equipment | 600 tons | 15 kW |
+| [[CondenserPump]] | Component | 1200 GPM | 25 kW |
+| [[ChilledPump]] | Component | 1000 GPM | 30 kW |
+| [[Compressor]] | Component | 500 tons | 400 kW |
+
+## Refrigerant Cycle Components
+
+The compressor is the heart of the chiller system. It works with the evaporator, condenser, and expansion valve to complete the refrigeration cycle.
+
+::rel ChillerSystem -> Compressor [contains] ::
+::rel ChillerSystem -> Evaporator [contains] ::
+::rel ChillerSystem -> Condenser [contains] ::
+::rel ChillerSystem -> ExpansionValve [contains] ::
+::rel Compressor -> Condenser [sends high-pressure gas to] ::
+::rel Condenser -> ExpansionValve [sends high-pressure liquid to] ::
+::rel ExpansionValve -> Evaporator [sends low-pressure liquid to] ::
+::rel Evaporator -> Compressor [returns low-pressure gas to] ::
+
+## Control System
+
+The controller monitors and manages all components. It receives data from the temp sensor and pressure sensor to maintain optimal performance.
+
+::rel Controller -> TempSensor [reads] ::
+::rel Controller -> PressureSensor [reads] ::
+::rel Controller -> ChillerSystem [controls] ::
+
+## Network Architecture
+
+The SCADA system provides remote monitoring and control capabilities.
+
+::rel SCADA -> Controller [interfaces with] ::
+::rel SCADA -> TempSensor [monitors] ::
+::rel SCADA -> PressureSensor [monitors] ::</textarea>
+            </div>
+        </div>
+        
+        <div class="panel preview-panel" id="previewPanel">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <span>Rendered Document</span>
+                    <button type="button" class="toggle-editor">✏️ Edit Document</button>
+                </div>
+                <div id="preview"></div>
+            </div>
+        </div>
+        
+        <div class="panel graph-panel" id="graphPanel">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <span>Graph Visualization</span>
+                    <button type="button" class="redraw-graph-btn">🔄 Redraw Layout</button>
+                </div>
+                <div id="cy"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="syntax-help" id="syntaxHelp">
+        <h3>DOT-LD Syntax</h3>
+        <p>Define your system structure right in your markdown!</p>
+        
+        <h4>Configuration Block (hidden in output):</h4>
+        <pre><span class="syntax-config">::config</span>
+<span class="syntax-comment">// Style: type: shape, color, size</span>
+<span class="syntax-node">equipment</span>: <span class="syntax-type">round-rectangle, #4A90E2, 120</span>
+
+<span class="syntax-comment">// Entities: name: type=...</span>
+<span class="syntax-node">ChillerSystem</span>: <span class="syntax-type">type=equipment</span>
+<span class="syntax-config">::</span></pre>
+        
+        <h4>Inline References:</h4>
+        <pre>The <span class="syntax-inline-node">[[ChillerSystem]]</span> includes...</pre>
+        
+        <h4>Relationships (hidden in output):</h4>
+        <pre><span class="syntax-rel">::rel Source -&gt; Target [<span class="syntax-label">label</span>] ::</span>
+<span class="syntax-comment">// Arrow directions: -&gt;, &lt;-, &lt;-&gt;</span></pre>
+        
+        <button type="button">Got it!</button>
+    </div>
+
+    <script>
+        /**
+         * DOT-LD Visualization Example
+         * Edit a DOT-LD markdown document and see the rendered text and knowledge graph side by side
+         */
+
+        // Main application controller
+        class GraphDocumentApp {
+            constructor() {
+                // Initialize core components
+                this.domCache = new DOMCache();
+                this.parser = new NotationParser();
+                this.editor = new EditorManager(this.domCache.editor, this.domCache.editorHighlight);
+                this.graph = new GraphManager(this.domCache.graphContainer);
+                this.autocomplete = new AutocompleteManager(this.editor, this.parser);
+                this.markdown = new MarkdownRenderer(this.domCache.preview);
+                
+                // Application state
+                this.state = {
+                    editorOpen: false,
+                    syntaxHelpShown: false,
+                    isFirstRender: true
+                };
+                
+                // Set up UI components
+                this.setupEventHandlers();
+                this.setupSyntaxHelp();
+                
+                // Initial update
+                this.update();
+            }
+            
+            /**
+             * Set up application event handlers
+             */
+            setupEventHandlers() {
+                // Create a debounced graph update to avoid performance issues
+                this.debouncedGraphUpdate = debounce(() => {
+                    this.graph.render(this.parser.nodes, this.parser.edges, this.parser.nodeStyles);
+                }, 300);
+                
+                // Set up editor events
+                this.editor.onContentChanged(() => this.handleEditorUpdate());
+                
+                // Set up UI control events
+                this.domCache.toggleEditorBtn.addEventListener('click', () => this.toggleEditor());
+                this.domCache.redrawGraphBtn.addEventListener('click', () => this.graph.redraw());
+                this.domCache.autoLinkBtn.addEventListener('click', () => this.handleAutoLink());
+                
+                // Set up syntax help events
+                this.domCache.closeSyntaxHelpBtn.addEventListener('click', () => this.closeSyntaxHelp());
+                
+                // Set up graph interaction events
+                this.graph.onNodeClick(nodeId => this.handleNodeClick(nodeId));
+                
+                // Global click handler for closing overlays
+                document.addEventListener('click', e => this.handleDocumentClick(e));
+            }
+            
+            /**
+             * Set up the syntax help overlay
+             */
+            setupSyntaxHelp() {
+                // Create blur overlay for modals
+                this.blurOverlay = new BlurOverlay();
+            }
+            
+            /**
+             * Handle editor content updates
+             */
+            handleEditorUpdate() {
+                const text = this.domCache.editor.value;
+                
+                try {
+                    // Update highlighting immediately
+                    this.editor.updateHighlight();
+                    
+                    // Parse the document
+                    this.parser.parse(text);
+                    
+                    // Update the markdown preview
+                    this.markdown.render(text, this.parser.entityDefinitions);
+                    this.markdown.onNodeClick(nodeId => this.handleNodeClick(nodeId));
+                    
+                    // Defer expensive graph updates
+                    this.debouncedGraphUpdate();
+                } catch (error) {
+                    console.error("Error updating document:", error);
+                    // Show a user-friendly error notification
+                    this.showNotification(`Error: ${error.message}`, 'error');
+                }
+            }
+            
+            /**
+             * Toggle the editor panel
+             */
+            toggleEditor() {
+                this.state.editorOpen = !this.state.editorOpen;
+                
+                if (this.state.editorOpen) {
+                    this.domCache.editorPanel.classList.add('open');
+                    this.domCache.toggleEditorBtn.textContent = '📖 Read Only';
+                    
+                    // Show syntax help first time
+                    if (!this.state.syntaxHelpShown) {
+                        setTimeout(() => {
+                            this.showSyntaxHelp();
+                            this.state.syntaxHelpShown = true;
+                        }, 300);
+                    }
+                } else {
+                    this.domCache.editorPanel.classList.remove('open');
+                    this.domCache.toggleEditorBtn.textContent = '✏️ Edit Document';
+                }
+                
+                // Resize graph after panel animation
+                setTimeout(() => {
+                    this.graph.resize();
+                }, 350);
+            }
+            
+            /**
+             * Show syntax help overlay
+             */
+            showSyntaxHelp() {
+                this.blurOverlay.show();
+                
+                const editorRect = this.domCache.editorPanel.getBoundingClientRect();
+                this.domCache.syntaxHelp.style.left = (editorRect.left + editorRect.width / 2 - 225) + 'px';
+                this.domCache.syntaxHelp.style.top = '100px';
+                this.domCache.syntaxHelp.classList.add('show');
+            }
+            
+            /**
+             * Close syntax help overlay
+             */
+            closeSyntaxHelp() {
+                this.domCache.syntaxHelp.classList.remove('show');
+                this.blurOverlay.hide();
+            }
+            
+            /**
+             * Handle node click from graph or preview
+             */
+            handleNodeClick(nodeId) {
+                this.graph.highlightNode(nodeId);
+                this.markdown.highlightNode(nodeId);
+            }
+            
+            /**
+             * Clear all highlighting
+             */
+            clearAllHighlights() {
+                this.graph.clearAllHighlights();
+                this.markdown.clearAllHighlights();
+            }
+            
+            /**
+             * Handle document-wide clicks
+             */
+            handleDocumentClick(e) {
+                // Handle clicks outside specific components
+                const syntaxHelp = this.domCache.syntaxHelp;
+                const autocompleteDropdown = this.autocomplete.dropdown;
+                
+                // Close syntax help when clicking outside
+                if (syntaxHelp.classList.contains('show') && 
+                    e.target === this.blurOverlay.element && 
+                    !syntaxHelp.contains(e.target)) {
+                    this.closeSyntaxHelp();
+                }
+                // Close autocomplete when clicking outside
+                else if (this.autocomplete.isActive && 
+                    (e.target === this.blurOverlay.element || 
+                    (e.target !== this.domCache.editor && 
+                    !autocompleteDropdown?.contains(e.target)))) {
+                    this.autocomplete.hide();
+                }
+                // Clear highlighting when clicking on empty areas
+                else if (e.target === this.domCache.preview || 
+                        e.target === this.graph.cy || 
+                        e.target.tagName === 'P' || 
+                        e.target.tagName.match(/^H[1-3]$/)) {
+                    this.clearAllHighlights();
+                }
+            }
+            
+            /**
+             * Auto-link entities in the document
+             */
+            handleAutoLink() {
+                try {
+                    const text = this.domCache.editor.value;
+                    const updatedText = this.parser.autoLinkEntities(text);
+                    const count = (updatedText.match(/\[\[/g) || []).length - 
+                                (text.match(/\[\[/g) || []).length;
+                    
+                    // Update editor
+                    this.domCache.editor.value = updatedText;
+                    
+                    // Show a notification with the result
+                    this.showNotification(
+                        count > 0 
+                            ? `Added ${count} entity reference${count > 1 ? 's' : ''}`
+                            : 'No new entity references found',
+                        count > 0 ? 'success' : 'info'
+                    );
+                    
+                    // Update the document
+                    this.handleEditorUpdate();
+                } catch (error) {
+                    console.error("Error auto-linking:", error);
+                    this.showNotification(`Auto-linking error: ${error.message}`, 'error');
+                }
+            }
+            
+            /**
+             * Show a notification message
+             */
+            showNotification(message, type = 'info') {
+                this.toast ??= new Toast();
+                this.toast.show(message, type, this.domCache.editorPanel);
+            }
+            
+            /**
+             * Perform a full update of the document
+             */
+            update() {
+                this.handleEditorUpdate();
+            }
+        }
+
+        /**
+         * Cache of DOM elements to avoid repeated querySelector calls
+         */
+        class DOMCache {
+            constructor() {
+                this.editor = document.getElementById('editor');
+                this.editorHighlight = document.getElementById('editor-highlight');
+                this.preview = document.getElementById('preview');
+                this.graphContainer = document.getElementById('cy');
+                this.editorPanel = document.getElementById('editorPanel');
+                this.syntaxHelp = document.getElementById('syntaxHelp');
+                this.toggleEditorBtn = document.querySelector('.toggle-editor');
+                this.autoLinkBtn = document.querySelector('.auto-link-btn');
+                this.redrawGraphBtn = document.querySelector('.redraw-graph-btn');
+                this.closeSyntaxHelpBtn = document.querySelector('#syntaxHelp button');
+                
+                // Validate that all elements were found
+                this.validateElements();
+            }
+            
+            /**
+             * Validate that all required DOM elements exist
+             * @throws Error if any required element is missing
+             */
+            validateElements() {
+                const requiredElements = [
+                    'editor', 'editorHighlight', 'preview', 'graphContainer',
+                    'editorPanel', 'syntaxHelp', 'toggleEditorBtn', 'closeSyntaxHelpBtn'
+                ];
+                
+                requiredElements.forEach(elementName => {
+                    if (!this[elementName]) {
+                        throw new Error(`Required DOM element not found: ${elementName}`);
+                    }
+                });
+            }
+        }
+
+        /**
+         * Shared DOT-LD syntax rules (see docs/syntax-specification.md)
+         */
+        // @secure_recommendation: Allowlist validation. Entity and type names must start with a letter
+        // and contain only letters, digits, "_" or "-" (spec 4.2). Names are used in HTML attributes
+        // and graph selectors, so nothing else is accepted.
+        const DOTLD_NAME_RE = /^[A-Za-z][\w-]*$/;
+        const DOTLD_SHAPES = new Set(['round-rectangle', 'rectangle', 'ellipse', 'circle', 'diamond']); // spec 3.2
+        const DOTLD_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;                                                       // spec 3.2, 6.2
+        const DOTLD_SIZE_RANGE = { min: 20, max: 300 };
+
+        /**
+         * Escape text for safe use in HTML text and in double-quoted attribute values.
+         * @param {string} value - Untrusted text
+         * @returns {string} Escaped text
+         */
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        /**
+         * Remove fenced code blocks and inline code spans so that DOT-LD syntax shown as an
+         * example inside a document is not parsed as real config, references or relationships.
+         * This matches how the preview renders them (as literal code).
+         * @param {string} text - Markdown text
+         * @returns {string} Text with code removed
+         */
+        function stripMarkdownCode(text) {
+            return text
+                // Fenced blocks: ``` or ~~~ (3+), closed by the same fence or the end of the document
+                .replace(/^[ \t]{0,3}((`|~)\2{2,})[^\n]*\n[\s\S]*?(?:^[ \t]{0,3}\1\2*[ \t]*$|(?![\s\S]))/gm, '')
+                // Code spans: matching backtick runs within one paragraph
+                .replace(/(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])+?(?<!`)\1(?!`)/g, '');
+        }
+
+        /**
+         * Parser for DOT-LD notation
+         */
+        class NotationParser {
+            constructor() {
+                this.nodes = new Map();
+                this.edges = [];
+                this.nodeStyles = new Map();
+                this.entityDefinitions = new Map();
+                this.warnings = [];
+                this.lastWarningKey = '';
+
+                // Default styles
+                this.defaultStyles = {
+                    'default': { shape: 'round-rectangle', color: '#666666', size: 100 }
+                };
+            }
+
+            /**
+             * Parse the complete document content
+             * @param {string} text - Document text to parse
+             */
+            parse(text) {
+                this.nodes.clear();
+                this.edges = [];
+                this.warnings = [];
+
+                // DOT-LD syntax inside code fences or code spans is example text, not document structure
+                const source = stripMarkdownCode(text);
+
+                this.parseConfig(source);
+                this.parseNodeReferences(source);
+                this.parseRelationships(source);
+
+                // Log validation warnings only when they change, not on every keystroke
+                const warningKey = this.warnings.join('\n');
+                if (warningKey !== this.lastWarningKey) {
+                    this.warnings.forEach(warning => console.warn(`DOT-LD: ${warning}`));
+                    this.lastWarningKey = warningKey;
+                }
+            }
+
+            /**
+             * Parse every ::config block in document order (spec 3.5).
+             * Later type definitions and entity assignments override earlier ones.
+             * @param {string} text - Document text with code removed
+             */
+            parseConfig(text) {
+                this.nodeStyles.clear();
+                this.entityDefinitions.clear();
+
+                // "::config" on its own line, content, then "::" on its own line (spec 3.1)
+                const blockRe = /^::config[ \t]*\n([\s\S]*?)^::[ \t]*$/gm;
+                for (const block of text.matchAll(blockRe)) {
+                    for (const rawLine of block[1].split('\n')) {
+                        // Comments start with "//" at the start of a line or after whitespace (spec 3.4)
+                        const line = rawLine.replace(/(^|\s)\/\/.*$/, '').trim();
+                        if (line) {
+                            this.parseConfigLine(line);
+                        }
+                    }
+                }
+
+                // Merge with defaults
+                for (const [type, style] of Object.entries(this.defaultStyles)) {
+                    if (!this.nodeStyles.has(type)) {
+                        this.nodeStyles.set(type, { ...style });
+                    }
+                }
+
+                // Types should be defined before use (spec 6.2)
+                this.entityDefinitions.forEach((definition, name) => {
+                    if (!this.nodeStyles.has(definition.type)) {
+                        this.warnings.push(`Entity "${name}" uses undefined type "${definition.type}"; the default style is used.`);
+                    }
+                });
+            }
+
+            /**
+             * Parse one config line: an entity assignment or a type definition
+             * @param {string} line - Config line with comments removed
+             */
+            parseConfigLine(line) {
+                // Entity assignment: Name: type=typeName[, key=value, ...] (spec 3.3)
+                const entity = /^([A-Za-z][\w-]*)\s*:\s*type\s*=\s*([A-Za-z][\w-]*)\s*(?:,(.*))?$/.exec(line);
+                if (entity) {
+                    const [, name, type, rest] = entity;
+                    this.entityDefinitions.set(name, { type, properties: this.parseProperties(rest || '', name) });
+                    return;
+                }
+
+                // Type definition: typeName: shape, #RRGGBB, size (spec 3.2)
+                const style = /^([A-Za-z][\w-]*)\s*:\s*([^,]+),([^,]+),([^,]+)$/.exec(line);
+                if (style) {
+                    const [, type, shapeRaw, colorRaw, sizeRaw] = style.map(part => part.trim());
+                    this.nodeStyles.set(type, this.validateStyle(type, shapeRaw, colorRaw, sizeRaw));
+                    return;
+                }
+
+                this.warnings.push(`Unrecognized config line: "${line}"`);
+            }
+
+            /**
+             * Validate a type definition, falling back to defaults for invalid values
+             * @returns {{shape: string, color: string, size: number}} Validated style
+             */
+            validateStyle(type, shapeRaw, colorRaw, sizeRaw) {
+                const fallback = this.defaultStyles.default;
+
+                let shape = shapeRaw.toLowerCase();
+                if (!DOTLD_SHAPES.has(shape)) {
+                    this.warnings.push(`Type "${type}": unsupported shape "${shapeRaw}"; use one of ${[...DOTLD_SHAPES].join(', ')}.`);
+                    shape = fallback.shape;
+                }
+
+                let color = colorRaw;
+                if (!DOTLD_COLOR_RE.test(color)) {
+                    this.warnings.push(`Type "${type}": color "${colorRaw}" must be in #RRGGBB format.`);
+                    color = fallback.color;
+                }
+
+                let size = /^\d+$/.test(sizeRaw) ? Number.parseInt(sizeRaw, 10) : NaN;
+                if (Number.isNaN(size)) {
+                    this.warnings.push(`Type "${type}": size "${sizeRaw}" must be a whole number.`);
+                    size = fallback.size;
+                } else if (size < DOTLD_SIZE_RANGE.min || size > DOTLD_SIZE_RANGE.max) {
+                    this.warnings.push(`Type "${type}": size ${size} is outside ${DOTLD_SIZE_RANGE.min}-${DOTLD_SIZE_RANGE.max} and was clamped.`);
+                    size = Math.min(Math.max(size, DOTLD_SIZE_RANGE.min), DOTLD_SIZE_RANGE.max);
+                }
+
+                return { shape, color, size };
+            }
+
+            /**
+             * Parse optional entity properties: key=value or key="quoted value", comma-separated
+             * @param {string} rest - Text after "type=typeName,"
+             * @param {string} entityName - Entity the properties belong to
+             * @returns {Object} Property map (no prototype, so keys cannot collide with Object methods)
+             */
+            parseProperties(rest, entityName) {
+                const properties = Object.create(null);
+                for (const part of rest.split(',')) {
+                    if (!part.trim()) continue;
+                    const match = /^\s*([A-Za-z][\w-]*)\s*=\s*(?:"([^"]*)"|([^"]*?))\s*$/.exec(part);
+                    if (match) {
+                        properties[match[1]] = match[2] ?? match[3];
+                    } else {
+                        this.warnings.push(`Entity "${entityName}": ignored property "${part.trim()}".`);
+                    }
+                }
+                return properties;
+            }
+
+            /**
+             * Collect graph nodes from the entity catalog and from [[...]] references (spec 8.3)
+             * @param {string} text - Document text with code removed
+             */
+            parseNodeReferences(text) {
+                this.entityDefinitions.forEach((definition, name) => this.ensureNodeExists(name));
+
+                for (const [, name] of text.matchAll(/\[\[([^\[\]\n]+)\]\]/g)) {
+                    if (DOTLD_NAME_RE.test(name)) {
+                        this.ensureNodeExists(name);
+                    } else {
+                        this.warnings.push(`Invalid entity reference [[${name}]]: names start with a letter and use only letters, digits, "_" or "-".`);
+                    }
+                }
+            }
+
+            /**
+             * Parse relationships: ::rel Source (->|<-|<->) Target [label] :: (spec 5)
+             * @param {string} text - Document text with code removed
+             */
+            parseRelationships(text) {
+                const relRe = /^::rel[ \t]+([A-Za-z][\w-]*)[ \t]*(<->|<-|->)[ \t]*([A-Za-z][\w-]*)[ \t]*(?:\[([^\]\n]*)\])?[ \t]*::$/;
+                const seen = new Set();
+
+                for (const [raw] of text.matchAll(/::rel[ \t][^\n]*?::/g)) {
+                    const match = relRe.exec(raw);
+                    if (!match) {
+                        this.warnings.push(`Malformed relationship: ${raw}`);
+                        continue;
+                    }
+
+                    const [, left, arrow, right, rawLabel = ''] = match;
+                    const label = rawLabel.trim();
+                    // "A <- B" means "B -> A" (spec 5.2)
+                    const [source, target] = arrow === '<-' ? [right, left] : [left, right];
+                    const bidirectional = arrow === '<->';
+
+                    // Skip exact duplicates (spec 5.6)
+                    const key = [source, target, label, bidirectional].join('\u0000');
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+
+                    this.edges.push({ source, target, label, bidirectional });
+                    this.ensureNodeExists(source);
+                    this.ensureNodeExists(target);
+                }
+            }
+
+            /**
+             * Ensure a node exists in the nodes collection
+             * @param {string} nodeName - Node name to ensure
+             */
+            ensureNodeExists(nodeName) {
+                if (this.nodes.has(nodeName)) return;
+                const definition = this.entityDefinitions.get(nodeName);
+                this.nodes.set(nodeName, {
+                    id: nodeName,
+                    label: nodeName,
+                    type: definition ? definition.type : 'default',
+                    properties: definition ? definition.properties : Object.create(null)
+                });
+            }
+            
+            /**
+             * Auto-link entities in text
+             * @param {string} text - Document text
+             * @returns {string} Updated text with auto-linked entities
+             */
+            autoLinkEntities(text) {
+                // Extract and preserve blocks
+                const preservedBlocks = [];
+                let preservedText = text;
+                
+                // Helper function to preserve blocks
+                const preserveBlocks = (regex) => {
+                    preservedText = preservedText.replace(regex, (match) => {
+                        const placeholder = `__PRESERVED_BLOCK_${preservedBlocks.length}__`;
+                        preservedBlocks.push(match);
+                        return placeholder;
+                    });
+                };
+                
+                // Preserve blocks that shouldn't be modified
+                preserveBlocks(/::config[\s\S]*?::/g);
+                preserveBlocks(/::rel\s+.*?::/g);
+                preserveBlocks(/\[\[[^\]]+\]\]/g);
+                
+                // Create entity name mapping
+                const textToEntity = new Map();
+                
+                this.entityDefinitions.forEach((def, entityName) => {
+                    // Add exact match
+                    textToEntity.set(entityName.toLowerCase(), entityName);
+                    
+                    // Add spaced version
+                    const spaced = entityName.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+                    if (spaced.length > 3) {
+                        textToEntity.set(spaced, entityName);
+                    }
+                    
+                    // Add word combinations for compound names
+                    const words = entityName.split(/(?=[A-Z])/);
+                    if (words.length > 1) {
+                        for (let i = 0; i < words.length - 1; i++) {
+                            const combo = words.slice(i, i + 2).join(' ').toLowerCase();
+                            if (combo.length > 3) {
+                                textToEntity.set(combo, entityName);
+                            }
+                        }
+                    }
+                });
+                
+                // Sort by length for more specific matches first
+                const sortedPatterns = Array.from(textToEntity.entries())
+                    .sort((a, b) => b[0].length - a[0].length);
+                
+                // Track modified ranges
+                const modifiedRanges = [];
+                
+                // Process each pattern
+                sortedPatterns.forEach(([pattern, entityName]) => {
+                    // Create regex for whole word matching
+                    const regex = new RegExp(`\\b${this.escapeRegex(pattern)}\\b`, 'gi');
+                    
+                    const replacements = [];
+                    let match;
+                    
+                    while ((match = regex.exec(preservedText)) !== null) {
+                        const start = match.index;
+                        const end = start + match[0].length;
+                        
+                        // Skip if position already modified
+                        if (!this.isOverlapping(start, end, modifiedRanges)) {
+                            replacements.push({
+                                start,
+                                end,
+                                original: match[0],
+                                entity: entityName
+                            });
+                        }
+                    }
+                    
+                    // Apply replacements from end to start
+                    replacements
+                        .sort((a, b) => b.start - a.start)
+                        .forEach(r => {
+                            const before = preservedText.substring(0, r.start);
+                            const after = preservedText.substring(r.end);
+                            const replacement = `[[${r.entity}]]`;
+                            
+                            preservedText = before + replacement + after;
+                            
+                            // Update ranges
+                            const lengthDiff = replacement.length - r.original.length;
+                            
+                            // Add new range
+                            modifiedRanges.push({
+                                start: r.start,
+                                end: r.start + replacement.length
+                            });
+                            
+                            // Adjust existing ranges
+                            modifiedRanges.forEach(range => {
+                                if (range.start > r.start) {
+                                    range.start += lengthDiff;
+                                    range.end += lengthDiff;
+                                }
+                            });
+                        });
+                });
+                
+                // Restore preserved blocks
+                preservedBlocks.forEach((block, index) => {
+                    const placeholder = `__PRESERVED_BLOCK_${index}__`;
+                    // A function replacer keeps "$&", "$1" and similar text in the block literal
+                    preservedText = preservedText.replace(placeholder, () => block);
+                });
+                
+                return preservedText;
+            }
+            
+            /**
+             * Check if a range overlaps with existing ranges
+             * @param {number} start - Start position
+             * @param {number} end - End position
+             * @param {Array} ranges - Array of existing ranges
+             * @returns {boolean} True if overlapping
+             */
+            isOverlapping(start, end, ranges) {
+                return ranges.some(range => 
+                    (start >= range.start && start < range.end) ||
+                    (end > range.start && end <= range.end) ||
+                    (start <= range.start && end >= range.end)
+                );
+            }
+            
+            /**
+             * Escape regex special characters
+             * @param {string} string - String to escape
+             * @returns {string} Escaped string
+             */
+            escapeRegex(string) {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+        }
+
+        /**
+         * Manages editor functionality
+         */
+        class EditorManager {
+            constructor(editor, highlightElement) {
+                this.editor = editor;
+                this.highlight = highlightElement;
+                this.syntaxHighlighter = new SyntaxHighlighter();
+                
+                // Set up scrolling synchronization
+                this.editor.addEventListener('scroll', () => this.syncScroll());
+            }
+            
+            /**
+             * Register callback for editor content changes
+             * @param {Function} callback - Function to call on content change
+             */
+            onContentChanged(callback) {
+                this.editor.addEventListener('input', () => {
+                    callback();
+                });
+            }
+            
+            /**
+             * Update syntax highlighting
+             */
+            updateHighlight() {
+                this.highlight.innerHTML = this.syntaxHighlighter.highlight(this.editor.value);
+                this.syncScroll();
+            }
+            
+            /**
+             * Synchronize scrolling between editor and highlight
+             */
+            syncScroll() {
+                this.highlight.scrollTop = this.editor.scrollTop;
+                this.highlight.scrollLeft = this.editor.scrollLeft;
+            }
+            
+            /**
+             * Get caret coordinates in the editor
+             * @param {number} position - Caret position in text
+             * @returns {Object} Coordinates {top, left}
+             */
+            getCaretCoordinates(position) {
+                const div = document.createElement('div');
+                const style = getComputedStyle(this.editor);
+                
+                // Copy textarea styles
+                ['font', 'letterSpacing', 'wordSpacing', 'lineHeight', 
+                'padding', 'border', 'width'].forEach(prop => {
+                    div.style[prop] = style[prop];
+                });
+                
+                div.style.position = 'absolute';
+                div.style.visibility = 'hidden';
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.wordWrap = 'break-word';
+                
+                // Copy text up to caret
+                div.textContent = this.editor.value.substring(0, position);
+                
+                // Create caret span
+                const span = document.createElement('span');
+                span.textContent = '|';
+                div.appendChild(span);
+                
+                document.body.appendChild(div);
+                
+                const coords = {
+                    top: span.offsetTop - this.editor.scrollTop,
+                    left: span.offsetLeft - this.editor.scrollLeft
+                };
+                
+                document.body.removeChild(div);
+                
+                return coords;
+            }
+        }
+
+        /**
+         * Handles syntax highlighting
+         */
+        class SyntaxHighlighter {
+            /**
+             * Highlight text with syntax rules
+             * @param {string} text - Text to highlight
+             * @returns {string} HTML with syntax highlighting
+             */
+            highlight(text) {
+                // Escape HTML
+                let highlighted = this.escapeHtml(text);
+                
+                // Apply highlighting rules
+                highlighted = this.highlightComments(highlighted);
+                highlighted = this.highlightConfig(highlighted);
+                highlighted = this.highlightStyles(highlighted);
+                highlighted = this.highlightEntityDefinitions(highlighted);
+                highlighted = this.highlightMarkdown(highlighted);
+                highlighted = this.highlightNodeReferences(highlighted);
+                highlighted = this.highlightRelationships(highlighted);
+                
+                return highlighted;
+            }
+            
+            /**
+             * Escape HTML special characters
+             * @param {string} text - Text to escape
+             * @returns {string} Escaped HTML
+             */
+            escapeHtml(text) {
+                return text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+            
+            /**
+             * Highlight comments
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightComments(text) {
+                return text.replace(/\/\/(.*)$/gm, 
+                    '<span class="syntax-comment">//$1</span>');
+            }
+            
+            /**
+             * Highlight config block markers
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightConfig(text) {
+                let result = text.replace(/::config/g, 
+                    '<span class="syntax-config">::config</span>');
+                    
+                return result.replace(/^::$/gm, 
+                    '<span class="syntax-config">::</span>');
+            }
+            
+            /**
+             * Highlight style definitions
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightStyles(text) {
+                return text.replace(
+                    /^([\w-]+):\s*([^,\n]+),\s*([^,\n]+),\s*([^\n]+)$/gm,
+                    '<span class="syntax-property">$1</span>: <span class="syntax-type-property">$2, $3, $4</span>'
+                );
+            }
+            
+            /**
+             * Highlight entity definitions
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightEntityDefinitions(text) {
+                return text.replace(
+                    /^([\w-]+):\s*type=([\w-]+)$/gm,
+                    '<span class="syntax-property">$1</span>: <span class="syntax-type-property">type=$2</span>'
+                );
+            }
+            
+            /**
+             * Highlight markdown headings
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightMarkdown(text) {
+                return text.replace(/^(#{1,6}\s.+)$/gm, 
+                    '<span class="syntax-markdown-heading">$1</span>');
+            }
+            
+            /**
+             * Highlight node references
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightNodeReferences(text) {
+                return text.replace(
+                    /\[\[([^\]]+)\]\]/g,
+                    '<span class="syntax-inline-node">[[$1]]</span>'
+                );
+            }
+            
+            /**
+             * Highlight relationships
+             * @param {string} text - Text to process
+             * @returns {string} Processed text
+             */
+            highlightRelationships(text) {
+                return text.replace(
+                    /::rel\s+(.+?)::/g,
+                    (match, content) => {
+                        let relHighlighted = content
+                            .replace(/(\s*->\s*)/g, '<span class="syntax-arrow">$1</span>')
+                            .replace(/\[([^\]]+)\]/g, '[<span class="syntax-label">$1</span>]');
+                        return `<span class="syntax-rel">::rel ${relHighlighted} ::</span>`;
+                    }
+                );
+            }
+        }
+
+        /**
+         * Manages graph visualization
+         */
+        class GraphManager {
+            constructor(container) {
+                this.container = container;
+                this.cy = null;
+                this.nodePositions = new Map();
+                this.isFirstRender = true;
+                this.nodeClickCallback = null;
+            }
+            
+            /**
+             * Register callback for node clicks
+             * @param {Function} callback - Function to call on node click
+             */
+            onNodeClick(callback) {
+                this.nodeClickCallback = callback;
+            }
+            
+            /**
+             * Render the graph
+             * @param {Map} nodes - Map of nodes
+             * @param {Array} edges - Array of edges
+             * @param {Map} nodeStyles - Map of node styles
+             */
+            render(nodes, edges, nodeStyles) {
+                const elements = [];
+                
+                // Save current positions before destroying
+                if (this.cy && !this.isFirstRender) {
+                    this.savePositions();
+                }
+                
+                // Create node elements
+                nodes.forEach(node => {
+                    const savedPos = this.nodePositions.get(node.id);
+                    const nodeData = {
+                        data: { 
+                            id: node.id, 
+                            label: node.label,
+                            type: node.type 
+                        }
+                    };
+                    
+                    if (savedPos) {
+                        nodeData.position = savedPos;
+                    }
+                    
+                    elements.push(nodeData);
+                });
+                
+                // Create edge elements
+                edges.forEach((edge, index) => {
+                    elements.push({
+                        data: {
+                            id: `edge${index}`,
+                            source: edge.source,
+                            target: edge.target,
+                            label: edge.label,
+                            bidirectional: edge.bidirectional === true
+                        }
+                    });
+                });
+                
+                // Stop any running layout and pending callbacks before replacing the graph contents
+                this.cancelPending();
+                
+                try {
+                    // Build styles for node types
+                    const nodeStyleRules = [];
+                    
+                    nodeStyles.forEach((style, type) => {
+                        // Cytoscape has no "circle" shape; a circle is an ellipse with equal width and height.
+                        // Type names are validated by the parser, so they are safe inside this selector.
+                        const isCircle = style.shape === 'circle';
+                        nodeStyleRules.push({
+                            selector: `node[type="${type}"]`,
+                            style: {
+                                'background-color': 'white',
+                                'border-width': '2px',
+                                'border-color': style.color,
+                                'color': '#333',
+                                'shape': isCircle ? 'ellipse' : style.shape,
+                                'width': style.size + 'px',
+                                'height': (isCircle ? style.size : style.size * 0.6) + 'px',
+                                'text-outline-width': 0,
+                                'font-size': '12px',
+                                'font-weight': '500',
+                                'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                            }
+                        });
+                    });
+                    
+                    const style = [
+                            // Base node style
+                            {
+                                selector: 'node',
+                                style: {
+                                    'label': 'data(label)',
+                                    'text-valign': 'center',
+                                    'text-halign': 'center',
+                                    'background-color': 'white',
+                                    'border-width': '2px',
+                                    'border-color': '#666666',
+                                    'color': '#333',
+                                    'text-outline-width': 0,
+                                    'font-size': '12px',
+                                    'font-weight': '500',
+                                    'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                                    'width': '100px',
+                                    'height': '60px',
+                                    'shape': 'round-rectangle'
+                                }
+                            },
+                            // Node type styles
+                            ...nodeStyleRules,
+                            // Edge style
+                            {
+                                selector: 'edge',
+                                style: {
+                                    'width': 2,
+                                    'line-color': '#999',
+                                    'target-arrow-color': '#999',
+                                    'source-arrow-color': '#999',
+                                    'target-arrow-shape': 'triangle',
+                                    'arrow-scale': 1.2,
+                                    // bezier keeps several relationships between the same two entities apart (spec 5.5)
+                                    'curve-style': 'bezier',
+                                    'label': 'data(label)',
+                                    'font-size': '10px',
+                                    'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                                    'text-background-color': 'white',
+                                    'text-background-opacity': 1,
+                                    'text-background-padding': '3px',
+                                    'text-border-width': '1px',
+                                    'text-border-color': '#ddd',
+                                    'color': '#666'
+                                }
+                            },
+                            // Bidirectional relationships (<->) get arrows on both ends (spec 5.2)
+                            {
+                                selector: 'edge[?bidirectional]',
+                                style: {
+                                    'source-arrow-shape': 'triangle'
+                                }
+                            },
+                            // Highlighted elements
+                            {
+                                selector: 'node.highlighted',
+                                style: {
+                                    'background-color': '#ffeb3b',
+                                    'border-width': '2px',
+                                    'z-index': 999
+                                }
+                            },
+                            {
+                                selector: 'edge.highlighted',
+                                style: {
+                                    'line-color': '#f9a825',
+                                    'target-arrow-color': '#f9a825',
+                                    'source-arrow-color': '#f9a825',
+                                    'z-index': 999
+                                }
+                            },
+                            // Hovered elements
+                            {
+                                selector: '.hover',
+                                style: {
+                                    'background-color': '#fff8e1',
+                                    'border-width': '2px',
+                                    'border-color': '#ffd54f',
+                                    'z-index': 99
+                                }
+                            }
+                    ];
+
+                    // Create the Cytoscape instance once and reuse it across edits, replacing only its
+                    // elements and style, so rendering stays stable while a layout is running.
+                    if (!this.cy) {
+                        this.cy = cytoscape({ container: this.container, layout: { name: 'preset' } });
+                        this.setupEventHandlers();
+                    }
+                    this.cy.batch(() => {
+                        this.cy.elements().remove();
+                        this.cy.add(elements);
+                    });
+                    this.cy.style(style);
+
+                    if (this.isFirstRender || this.nodePositions.size === 0) {
+                        this.runLayout({
+                            name: 'cose',
+                            padding: 30,
+                            nodeRepulsion: 8000,
+                            idealEdgeLength: 120,
+                            edgeElasticity: 200,
+                            nestingFactor: 1.2,
+                            gravity: 0.1
+                        });
+                    }
+                    
+                    // Fit graph after creation
+                    this.fitGraph();
+                    
+                    // First render complete
+                    if (this.isFirstRender) {
+                        this.isFirstRender = false;
+                    }
+                } catch (error) {
+                    console.error("Error rendering graph:", error);
+                    // showError replaces the container contents, so drop the instance; the next render creates a new one
+                    this.cancelPending();
+                    this.cy?.destroy();
+                    this.cy = null;
+                    this.showError("Failed to render graph. Check console for details.");
+                }
+            }
+            
+            /**
+             * Set up graph event handlers
+             */
+            setupEventHandlers() {
+                // Remove any existing handlers
+                this.cy.removeAllListeners();
+                
+                // Node drag handler to update positions
+                this.cy.on('dragfree', 'node', event => {
+                    const node = event.target;
+                    this.nodePositions.set(node.id(), {
+                        x: node.position('x'),
+                        y: node.position('y')
+                    });
+                });
+                
+                // Node click handler
+                this.cy.on('tap click', 'node', event => {
+                    event.stopPropagation();
+                    const nodeId = event.target.id();
+                    
+                    if (this.nodeClickCallback) {
+                        this.nodeClickCallback(nodeId);
+                    }
+                });
+                
+                // Background click handler
+                this.cy.on('tap click', event => {
+                    if (event.target === this.cy) {
+                        this.clearAllHighlights();
+                    }
+                });
+            }
+            
+            /**
+             * Save current node positions
+             */
+            savePositions() {
+                if (!this.cy) return;
+                
+                this.cy.nodes().forEach(node => {
+                    this.nodePositions.set(node.id(), {
+                        x: node.position('x'),
+                        y: node.position('y')
+                    });
+                });
+            }
+            
+            /**
+             * Highlight a specific node
+             * @param {string} nodeId - ID of node to highlight
+             */
+            highlightNode(nodeId) {
+                if (!this.cy) return;
+                
+                this.cy.$('.highlighted').removeClass('highlighted');
+                // getElementById avoids building a selector string from document text
+                const node = this.cy.getElementById(nodeId);
+                node.addClass('highlighted');
+                node.connectedEdges().addClass('highlighted');
+            }
+            
+            /**
+             * Clear all highlights
+             */
+            clearAllHighlights() {
+                if (!this.cy) return;
+                this.cy.$('.highlighted').removeClass('highlighted');
+            }
+            
+            /**
+             * Redraw the graph with a new layout
+             */
+            redraw() {
+                if (!this.cy) return;
+                
+                // Clear saved positions
+                this.nodePositions.clear();
+                
+                // Run new layout; positions are saved when it finishes
+                this.runLayout({
+                    name: 'cose',
+                    padding: 30,
+                    nodeRepulsion: 8000,
+                    idealEdgeLength: 120,
+                    edgeElasticity: 200,
+                    nestingFactor: 1.2,
+                    gravity: 0.1,
+                    animate: true,
+                    animationDuration: 500,
+                    animationEasing: 'ease-out'
+                }, () => this.savePositions());
+            }
+
+            /**
+             * Run a layout on the current instance, stopping any layout that is still running
+             * @param {Object} options - Cytoscape layout options
+             * @param {Function} [onStop] - Called when the layout finishes
+             */
+            runLayout(options, onStop) {
+                if (!this.cy) return;
+                this.layout?.stop();
+                const layout = this.cy.layout(options);
+                this.layout = layout;
+                layout.one('layoutstop', () => {
+                    if (this.layout === layout) {
+                        this.layout = null;
+                        onStop?.();
+                    }
+                });
+                layout.run();
+            }
+
+            /**
+             * Schedule work against the current Cytoscape instance. The callback is skipped
+             * if the graph is re-rendered or destroyed before the timer fires.
+             * @param {Function} callback - Receives the live Cytoscape instance
+             * @param {number} delay - Delay in milliseconds
+             */
+            defer(callback, delay) {
+                this.timers ??= new Set();
+                const cy = this.cy;
+                const timer = setTimeout(() => {
+                    this.timers.delete(timer);
+                    if (cy && this.cy === cy && !cy.destroyed()) {
+                        callback(cy);
+                    }
+                }, delay);
+                this.timers.add(timer);
+            }
+
+            /**
+             * Stop the running layout and cancel pending deferred callbacks
+             */
+            cancelPending() {
+                this.layout?.stop();
+                this.layout = null;
+                this.timers?.forEach(clearTimeout);
+                this.timers?.clear();
+            }
+            
+            /**
+             * Resize and fit the graph
+             */
+            resize() {
+                this.defer(cy => {
+                    cy.resize();
+                    cy.fit();
+                }, 50);
+            }
+            
+            /**
+             * Fit the graph to view all elements
+             */
+            fitGraph() {
+                this.defer(cy => {
+                    cy.resize();
+                    cy.fit();
+                    
+                    // Run layout for small graphs
+                    if (cy.nodes().length > 0 && cy.nodes().length < 3) {
+                        this.runLayout({ name: 'cose', padding: 30, animate: false });
+                    }
+                }, 50);
+            }
+            
+            /**
+             * Show error message in graph container
+             * @param {string} message - Error message to display
+             */
+            showError(message) {
+                // Clear container
+                while (this.container.firstChild) {
+                    this.container.removeChild(this.container.firstChild);
+                }
+                
+                // Create error message
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    padding: 20px;
+                    color: #721c24;
+                    background-color: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    border-radius: 4px;
+                    text-align: center;
+                    margin: 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                `;
+                errorDiv.textContent = message;
+                
+                // Add to container
+                this.container.appendChild(errorDiv);
+            }
+        }
+
+        /**
+         * Handles rendering of markdown content with node references
+         */
+        class MarkdownRenderer {
+            constructor(container) {
+                this.container = container;
+                this.nodeClickCallback = null;
+
+                // A private marked instance keeps the DOT-LD extensions out of the global marked defaults.
+                // marked handles code fences and code spans first, so DOT-LD syntax inside them stays literal text.
+                this.md = new marked.Marked({ gfm: true });
+                this.md.use({ extensions: MarkdownRenderer.dotldExtensions() });
+
+                // @secure_recommendation: Preview links open in a new tab with no opener access,
+                // so following a link never navigates away from or gains control of this page.
+                DOMPurify.addHook('afterSanitizeAttributes', node => {
+                    if (node.tagName === 'A' && node.hasAttribute('href')) {
+                        node.setAttribute('target', '_blank');
+                        node.setAttribute('rel', 'noopener noreferrer');
+                    }
+                });
+            }
+
+            /**
+             * marked extensions for DOT-LD syntax:
+             * - ::config blocks and ::rel lines are hidden from the rendered output
+             * - [[Name]] becomes a clickable entity reference
+             * @returns {Array<Object>} marked extension definitions
+             */
+            static dotldExtensions() {
+                const indexOrUndefined = index => (index >= 0 ? index : undefined);
+
+                const configBlock = {
+                    name: 'dotldConfig',
+                    level: 'block',
+                    start: src => src.match(/^::config[ \t]*$/m)?.index,
+                    tokenizer(src) {
+                        // Opening "::config" line, any lines, then a closing "::" on its own line (spec 3.1)
+                        const match = /^::config[ \t]*\n(?:[^\n]*\n)*?::[ \t]*(?:\n+|$)/.exec(src);
+                        if (match) return { type: 'dotldConfig', raw: match[0] };
+                    },
+                    renderer: () => ''
+                };
+
+                const relBlock = {
+                    name: 'dotldRel',
+                    level: 'block',
+                    start: src => src.match(/^::rel[ \t]/m)?.index,
+                    tokenizer(src) {
+                        // One or more consecutive "::rel ... ::" lines (spec 5.1)
+                        const match = /^(?:::rel[ \t][^\n]*?::[ \t]*(?:\n|$))+\n*/.exec(src);
+                        if (match) return { type: 'dotldRel', raw: match[0] };
+                    },
+                    renderer: () => ''
+                };
+
+                const relInline = {
+                    name: 'dotldRelInline',
+                    level: 'inline',
+                    start: src => indexOrUndefined(src.indexOf('::rel')),
+                    tokenizer(src) {
+                        const match = /^::rel[ \t][^\n]*?::/.exec(src);
+                        if (match) return { type: 'dotldRelInline', raw: match[0] };
+                    },
+                    renderer: () => ''
+                };
+
+                const entityRef = {
+                    name: 'dotldRef',
+                    level: 'inline',
+                    start: src => indexOrUndefined(src.indexOf('[[')),
+                    tokenizer(src) {
+                        const match = /^\[\[([^\[\]\n]+)\]\]/.exec(src);
+                        if (match) return { type: 'dotldRef', raw: match[0], name: match[1] };
+                    },
+                    renderer(token) {
+                        // @secure_recommendation: Allowlist entity names and escape them anyway.
+                        // Names that fail the allowlist are shown as plain text, never as markup.
+                        if (!DOTLD_NAME_RE.test(token.name)) {
+                            return escapeHtml(token.raw);
+                        }
+                        const name = escapeHtml(token.name);
+                        return `<span class="node-ref" data-node-id="${name}" tabindex="0" role="button">${name}</span>`;
+                    }
+                };
+
+                return [configBlock, relBlock, relInline, entityRef];
+            }
+            
+            /**
+             * Register callback for node clicks
+             * @param {Function} callback - Function to call on node click
+             */
+            onNodeClick(callback) {
+                this.nodeClickCallback = callback;
+            }
+            
+            /**
+             * Render markdown and process node references
+             * @param {string} text - Markdown text
+             * @param {Map} entityDefinitions - Entity definitions for styling
+             */
+            render(text, entityDefinitions) {
+                try {
+                    const html = this.md.parse(text);
+
+                    // @secure_recommendation: Sanitize at the sink. marked passes raw HTML through unchanged,
+                    // so every preview render goes through DOMPurify before it reaches innerHTML.
+                    this.container.innerHTML = DOMPurify.sanitize(html, {
+                        FORBID_TAGS: ['style', 'form', 'input', 'button', 'textarea', 'select'],
+                        FORBID_ATTR: ['style']
+                    });
+
+                    this.setupNodeReferenceHandlers();
+                } catch (error) {
+                    console.error('Error rendering markdown:', error);
+                    // @secure_recommendation: Show a generic message as text; never insert error details as HTML.
+                    const message = document.createElement('div');
+                    message.className = 'error-message';
+                    message.textContent = 'Could not render the document. Check the DOT-LD syntax and try again.';
+                    this.container.replaceChildren(message);
+                }
+            }
+            
+            /**
+             * Set up event handlers for node references
+             */
+            setupNodeReferenceHandlers() {
+                const getCy = () => window.app?.graph?.cy;
+
+                this.container.querySelectorAll('.node-ref').forEach(ref => {
+                    const nodeId = ref.dataset.nodeId;
+
+                    const activate = (e) => {
+                        e.stopPropagation();
+                        if (this.nodeClickCallback) {
+                            this.nodeClickCallback(nodeId);
+                        }
+                    };
+
+                    ref.addEventListener('click', activate);
+
+                    // Keyboard access: Enter or Space activates a focused reference
+                    ref.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            activate(e);
+                        }
+                    });
+
+                    // getElementById avoids building a Cytoscape selector string from document text
+                    ref.addEventListener('mouseenter', () => {
+                        getCy()?.getElementById(nodeId).addClass('hover');
+                    });
+
+                    ref.addEventListener('mouseleave', () => {
+                        getCy()?.$('.hover').removeClass('hover');
+                    });
+                });
+            }
+            
+            /**
+             * Highlight a node in the document
+             * @param {string} nodeId - ID of node to highlight
+             */
+            highlightNode(nodeId) {
+                this.container.querySelectorAll('.node-ref').forEach(ref => {
+                    ref.classList.remove('highlighted');
+                    if (ref.getAttribute('data-node-id') === nodeId) {
+                        ref.classList.add('highlighted');
+                        ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+            }
+            
+            /**
+             * Clear all highlights
+             */
+            clearAllHighlights() {
+                this.container.querySelectorAll('.node-ref.highlighted').forEach(ref => {
+                    ref.classList.remove('highlighted');
+                });
+            }
+        }
+
+        /**
+         * Manages autocomplete functionality for the editor
+         */
+        class AutocompleteManager {
+            /**
+             * @param {EditorManager} editorManager - Owns the textarea and caret measurement
+             * @param {NotationParser} parser - Supplies entity definitions for suggestions
+             */
+            constructor(editorManager, parser) {
+                this.editorManager = editorManager;
+                this.editor = editorManager.editor;
+                this.parser = parser;
+                this.dropdown = this.createDropdown();
+                this.isActive = false;
+                this.position = null;
+                this.blurOverlay = null;
+                
+                // Set up editor events
+                this.setupEvents();
+            }
+            
+            /**
+             * Set up editor events for autocomplete
+             */
+            setupEvents() {
+                // Track input for autocomplete
+                this.editor.addEventListener('input', (e) => {
+                    this.handleInput();
+                });
+                
+                // Handle special keys for autocomplete
+                this.editor.addEventListener('keydown', (e) => {
+                    this.handleKeydown(e);
+                });
+                
+                // Clean up on blur
+                this.editor.addEventListener('blur', () => {
+                    delete this.editor.dataset.pendingBracket;
+                });
+            }
+            
+            /**
+             * Handle input events to show autocomplete
+             */
+            handleInput() {
+                const cursorPos = this.editor.selectionStart;
+                const textBefore = this.editor.value.substring(0, cursorPos);
+                
+                // Check if we're typing a node reference
+                const match = textBefore.match(/\[\[([^\]]*$)/);
+                
+                if (match) {
+                    // Calculate position for dropdown
+                    const coords = this.editorManager.getCaretCoordinates(cursorPos);
+                    const rect = this.editor.getBoundingClientRect();
+                    
+                    const x = rect.left + coords.left + 10;
+                    const y = rect.top + coords.top + 25;
+                    
+                    // Ensure dropdown stays in viewport
+                    const maxY = window.innerHeight - 250;
+                    const adjustedY = Math.min(y, maxY);
+                    
+                    // Store position info for later insertion
+                    this.position = {
+                        start: cursorPos - match[1].length - 2,
+                        end: cursorPos,
+                        searchText: match[1]
+                    };
+                    
+                    // Check for fuzzy match text
+                    const fuzzyMatchText = this.editor.dataset.useFuzzyMatch;
+                    
+                    if (fuzzyMatchText && match[1] === fuzzyMatchText) {
+                        this.show(x, adjustedY, '', fuzzyMatchText);
+                    } else {
+                        if (fuzzyMatchText && match[1] !== fuzzyMatchText) {
+                            delete this.editor.dataset.useFuzzyMatch;
+                        }
+                        this.show(x, adjustedY, match[1], '');
+                    }
+                } else {
+                    this.hide();
+                    delete this.editor.dataset.useFuzzyMatch;
+                }
+            }
+            
+            /**
+             * Handle keydown events
+             * @param {Event} e - Keydown event
+             */
+            handleKeydown(e) {
+                // First check if we need to handle autocomplete navigation
+                if (this.handleAutocompleteKeyboard(e)) {
+                    return;
+                }
+                
+                // Handle [ key with text selection
+                if (e.key === '[' && !e.ctrlKey && !e.metaKey) {
+                    const start = this.editor.selectionStart;
+                    const end = this.editor.selectionEnd;
+                    const selectedText = this.editor.value.substring(start, end);
+                    
+                    if (start !== end && selectedText.length > 0) {
+                        e.preventDefault();
+                        
+                        // Insert first [ and store state for potential second [
+                        const before = this.editor.value.substring(0, start);
+                        const after = this.editor.value.substring(end);
+                        
+                        this.editor.value = before + '[' + selectedText + after;
+                        this.editor.setSelectionRange(start + 1, start + 1);
+                        
+                        // Store pending bracket state
+                        this.editor.dataset.pendingBracket = JSON.stringify({
+                            start: start,
+                            end: end,
+                            selectedText: selectedText,
+                            timestamp: Date.now()
+                        });
+                        
+                        // Notify about the change
+                        this.triggerInputEvent();
+                    }
+                }
+                // Handle second [ to create [[ structure
+                else if (e.key === '[' && this.editor.dataset.pendingBracket) {
+                    const pending = JSON.parse(this.editor.dataset.pendingBracket);
+                    
+                    // Check if this is within 500ms of the first [
+                    if (Date.now() - pending.timestamp < 500) {
+                        e.preventDefault();
+                        
+                        // Insert the complete [[text structure
+                        const currentText = this.editor.value;
+                        const before = currentText.substring(0, pending.start);
+                        const after = currentText.substring(pending.start + 1 + pending.selectedText.length);
+                        
+                        this.editor.value = before + `[[${pending.selectedText}` + after;
+                        
+                        // Position cursor after [[selectedText
+                        const newPos = pending.start + 2 + pending.selectedText.length;
+                        this.editor.setSelectionRange(newPos, newPos);
+                        
+                        // Set up for fuzzy matching
+                        this.editor.dataset.useFuzzyMatch = pending.selectedText;
+                        
+                        // Show autocomplete at cursor position
+                        const rect = this.editor.getBoundingClientRect();
+                        const coords = this.editorManager.getCaretCoordinates(newPos);
+                        
+                        const x = rect.left + coords.left + 10;
+                        const y = rect.top + coords.top + 25;
+                        const adjustedY = Math.min(y, window.innerHeight - 250);
+                        
+                        this.position = {
+                            start: pending.start,
+                            end: newPos,
+                            searchText: pending.selectedText,
+                            fuzzyMatch: true
+                        };
+                        
+                        this.show(x, adjustedY, '', pending.selectedText);
+                        
+                        delete this.editor.dataset.pendingBracket;
+                    } else {
+                        delete this.editor.dataset.pendingBracket;
+                    }
+                }
+            }
+            
+            /**
+             * Handle keyboard navigation in autocomplete dropdown
+             * @param {Event} e - Keydown event
+             * @returns {boolean} True if event was handled
+             */
+            handleAutocompleteKeyboard(e) {
+                if (!this.isActive) return false;
+                
+                const scrollContainer = this.dropdown.querySelector('.autocomplete-scroll');
+                const items = scrollContainer.querySelectorAll('div');
+                const selected = scrollContainer.querySelector('[data-selected="true"]');
+                let currentIndex = Array.from(items).indexOf(selected);
+                
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        if (currentIndex < items.length - 1) {
+                            items[currentIndex].style.backgroundColor = 'transparent';
+                            items[currentIndex].removeAttribute('data-selected');
+                            currentIndex++;
+                            items[currentIndex].style.backgroundColor = '#3a3a3a';
+                            items[currentIndex].setAttribute('data-selected', 'true');
+                            items[currentIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                        }
+                        return true;
+                        
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        if (currentIndex > 0) {
+                            items[currentIndex].style.backgroundColor = 'transparent';
+                            items[currentIndex].removeAttribute('data-selected');
+                            currentIndex--;
+                            items[currentIndex].style.backgroundColor = '#3a3a3a';
+                            items[currentIndex].setAttribute('data-selected', 'true');
+                            items[currentIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                        }
+                        return true;
+                        
+                    case 'Enter':
+                        e.preventDefault();
+                        if (selected) {
+                            const entityName = selected.querySelector('span').textContent;
+                            this.insertSelection(entityName);
+                        }
+                        return true;
+                        
+                    case 'Escape':
+                        e.preventDefault();
+                        this.hide();
+                        return true;
+                        
+                    default:
+                        return false;
+                }
+            }
+            
+            /**
+             * Show autocomplete dropdown
+             * @param {number} x - X coordinate
+             * @param {number} y - Y coordinate
+             * @param {string} searchText - Text to search for
+             * @param {string} selectedText - Selected text for fuzzy matching
+             */
+            show(x, y, searchText = '', selectedText = '') {
+                if (!this.dropdown) {
+                    this.dropdown = this.createDropdown();
+                }
+                
+                // Create blur overlay if needed
+                if (!this.blurOverlay) {
+                    this.blurOverlay = new BlurOverlay();
+                }
+                this.blurOverlay.show();
+                
+                this.isActive = true;
+                
+                // Clear and populate dropdown
+                const scrollContainer = this.dropdown.querySelector('.autocomplete-scroll');
+                scrollContainer.innerHTML = '';
+                
+                // Get and sort entities
+                let entities = Array.from(this.parser.entityDefinitions.entries());
+                
+                // Use selectedText for fuzzy matching if provided
+                const matchText = selectedText || searchText;
+                
+                if (matchText) {
+                    // Calculate fuzzy match scores
+                    entities = entities.map(([name, def]) => {
+                        const score = this.fuzzyMatch(matchText, name);
+                        return { name, def, score };
+                    })
+                    .sort((a, b) => b.score - a.score)
+                    .filter(item => item.score > 0.2);
+                    
+                    // Use scores if we have good matches
+                    if (entities.length > 0) {
+                        entities = entities.map(item => [item.name, item.def]);
+                    } else {
+                        // Fall back to simple contains matching
+                        entities = Array.from(this.parser.entityDefinitions.entries())
+                            .filter(([name, def]) => 
+                                name.toLowerCase().includes(matchText.toLowerCase())
+                            );
+                    }
+                }
+                
+                // Show all entities if no matches
+                if (entities.length === 0) {
+                    entities = Array.from(this.parser.entityDefinitions.entries());
+                }
+                
+                // Create dropdown items
+                entities.forEach(([name, def], index) => {
+                    const item = document.createElement('div');
+                    item.style.cssText = `
+                        padding: 10px 14px;
+                        cursor: pointer;
+                        border-bottom: 1px solid #3a3a3a;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        transition: background-color 0.15s ease;
+                        color: #d4d4d4;
+                    `;
+                    
+                    // Remove border from last item
+                    if (index === entities.length - 1) {
+                        item.style.borderBottom = 'none';
+                    }
+                    
+                    // Entity name
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = name;
+                    nameSpan.style.cssText = `
+                        font-weight: 500;
+                        color: #f06292;
+                        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                    `;
+                    
+                    // Entity type
+                    const typeSpan = document.createElement('span');
+                    typeSpan.textContent = `type=${def.type}`;
+                    typeSpan.style.cssText = `
+                        color: #66d9ef;
+                        font-size: 12px;
+                        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                        margin-left: 12px;
+                    `;
+                    
+                    item.appendChild(nameSpan);
+                    item.appendChild(typeSpan);
+                    
+                    // Hover styles
+                    item.addEventListener('mouseenter', () => {
+                        item.style.backgroundColor = '#3a3a3a';
+                    });
+                    
+                    item.addEventListener('mouseleave', () => {
+                        item.style.backgroundColor = item.dataset.selected ? '#3a3a3a' : 'transparent';
+                    });
+                    
+                    // Click handler
+                    item.addEventListener('click', () => {
+                        this.insertSelection(name);
+                    });
+                    
+                    // Highlight first item
+                    if (index === 0) {
+                        item.style.backgroundColor = '#3a3a3a';
+                        item.dataset.selected = 'true';
+                    }
+                    
+                    scrollContainer.appendChild(item);
+                });
+                
+                // Position dropdown
+                this.dropdown.style.left = x + 'px';
+                this.dropdown.style.top = y + 'px';
+                this.dropdown.style.display = 'block';
+            }
+            
+            /**
+             * Hide autocomplete dropdown
+             */
+            hide() {
+                // Nothing to do if the dropdown is already closed (handleInput calls this on most keystrokes)
+                if (!this.isActive) return;
+
+                if (this.dropdown) {
+                    this.dropdown.style.display = 'none';
+                }
+                
+                if (this.blurOverlay) {
+                    this.blurOverlay.hide();
+                }
+                
+                this.position = null;
+                this.isActive = false;
+                // hide() does not dispatch an input event because handleInput calls it. Methods that
+                // change the text, such as insertSelection, dispatch the event themselves.
+            }
+            
+            /**
+             * Insert selected entity into editor
+             * @param {string} entityName - Entity name to insert
+             */
+            insertSelection(entityName) {
+                const pos = this.position;
+                if (!pos) return;
+                
+                const before = this.editor.value.substring(0, pos.start);
+                const after = this.editor.value.substring(pos.end);
+                
+                this.editor.value = before + `[[${entityName}]]` + after;
+                
+                // Move cursor after insertion
+                const newPos = pos.start + `[[${entityName}]]`.length;
+                this.editor.setSelectionRange(newPos, newPos);
+                
+                this.hide();
+                // The text changed, so notify listeners once (updates highlighting, preview and graph)
+                this.triggerInputEvent();
+            }
+            
+            /**
+             * Fuzzy match two strings
+             * @param {string} str1 - First string
+             * @param {string} str2 - Second string
+             * @returns {number} Match score (0-1)
+             */
+            fuzzyMatch(str1, str2) {
+                str1 = str1.toLowerCase().replace(/\s+/g, '');
+                str2 = str2.toLowerCase().replace(/\s+/g, '');
+                
+                // Direct match
+                if (str1 === str2) return 1;
+                
+                // Contains match
+                if (str2.includes(str1) || str1.includes(str2)) return 0.8;
+                
+                // Calculate similarity score
+                let score = 0;
+                const minLen = Math.min(str1.length, str2.length);
+                
+                for (let i = 0; i < minLen; i++) {
+                    if (str1[i] === str2[i]) {
+                        score++;
+                    }
+                }
+                
+                return score / Math.max(str1.length, str2.length);
+            }
+            
+            /**
+             * Create autocomplete dropdown
+             * @returns {HTMLElement} Dropdown element
+             */
+            createDropdown() {
+                const dropdown = document.createElement('div');
+                dropdown.style.cssText = `
+                    position: absolute;
+                    background: #2d2d2d;
+                    border: 1px solid #444;
+                    border-radius: 6px;
+                    box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15), 0 4px 8px rgba(255, 255, 255, 0.1);
+                    max-height: 240px;
+                    overflow: hidden;
+                    z-index: 1001;
+                    display: none;
+                    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                    font-size: 14px;
+                `;
+                
+                // Create scrollable container
+                const scrollContainer = document.createElement('div');
+                scrollContainer.style.cssText = `
+                    max-height: 240px;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                `;
+                
+                // Hide scrollbar
+                const style = document.createElement('style');
+                style.textContent = `
+                    .autocomplete-scroll::-webkit-scrollbar {
+                        display: none;
+                    }
+                `;
+                document.head.appendChild(style);
+                scrollContainer.className = 'autocomplete-scroll';
+                
+                dropdown.appendChild(scrollContainer);
+                document.body.appendChild(dropdown);
+                return dropdown;
+            }
+            
+            /**
+             * Trigger input event on editor
+             */
+            triggerInputEvent() {
+                const event = new Event('input', {
+                    bubbles: true,
+                    cancelable: true,
+                });
+                this.editor.dispatchEvent(event);
+            }
+        }
+
+        /**
+         * Blur overlay for modals and dropdowns
+         */
+        class BlurOverlay {
+            constructor() {
+                this.element = this.create();
+            }
+            
+            /**
+             * Create blur overlay element
+             * @returns {HTMLElement} Overlay element
+             */
+            create() {
+                const overlay = document.createElement('div');
+                overlay.id = 'autocomplete-overlay';
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    backdrop-filter: blur(3px);
+                    -webkit-backdrop-filter: blur(3px);
+                    background-color: rgba(0, 0, 0, 0.1);
+                    z-index: 999;
+                    display: none;
+                    transition: opacity 0.2s ease;
+                    opacity: 0;
+                `;
+                document.body.appendChild(overlay);
+                return overlay;
+            }
+            
+            /**
+             * Show overlay with animation
+             */
+            show() {
+                this.element.style.display = 'block';
+                // Force reflow for transition
+                this.element.offsetHeight;
+                this.element.style.opacity = '1';
+            }
+            
+            /**
+             * Hide overlay with animation
+             */
+            hide() {
+                this.element.style.opacity = '0';
+                setTimeout(() => {
+                    this.element.style.display = 'none';
+                }, 200);
+            }
+        }
+
+        /**
+         * Toast message component (named Toast so it does not shadow the browser's Notification API)
+         */
+        class Toast {
+            constructor() {
+                this.element = null;
+                this.timeout = null;
+            }
+            
+            /**
+             * Show notification message
+             * @param {string} message - Message to display
+             * @param {string} type - Notification type (success, error, info)
+             * @param {HTMLElement} referenceElement - Element to position relative to
+             */
+            show(message, type = 'info', referenceElement = null) {
+                // Remove existing notification
+                if (this.element) {
+                    this.element.remove();
+                    clearTimeout(this.timeout);
+                }
+                
+                // Create notification element
+                this.element = document.createElement('div');
+                
+                // Get position for notification
+                let left = window.innerWidth / 2;
+                if (referenceElement) {
+                    const rect = referenceElement.getBoundingClientRect();
+                    left = rect.left + rect.width / 2;
+                }
+                
+                // Set background color based on type
+                let bgColor = '#2196F3'; // info (blue)
+                if (type === 'success') bgColor = '#4CAF50';
+                if (type === 'error') bgColor = '#F44336';
+                if (type === 'warning') bgColor = '#FF9800';
+                
+                // Style the notification
+                this.element.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    left: ${left}px;
+                    transform: translateX(-50%);
+                    background: ${bgColor};
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    z-index: 1010;
+                    font-size: 14px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    white-space: nowrap;
+                    opacity: 0;
+                    transition: opacity 0.3s;
+                `;
+                
+                // Add icon
+                const icon = document.createElement('span');
+                icon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ️';
+                this.element.appendChild(icon);
+                
+                // Add message
+                const messageSpan = document.createElement('span');
+                messageSpan.textContent = message;
+                this.element.appendChild(messageSpan);
+                
+                // Add to document
+                document.body.appendChild(this.element);
+                
+                // Fade in
+                setTimeout(() => {
+                    this.element.style.opacity = '1';
+                }, 10);
+                
+                // Auto-hide after delay
+                this.timeout = setTimeout(() => {
+                    this.hide();
+                }, 3000);
+            }
+            
+            /**
+             * Hide notification with fade out
+             */
+            hide() {
+                if (!this.element) return;
+                
+                this.element.style.opacity = '0';
+                setTimeout(() => {
+                    if (this.element) {
+                        this.element.remove();
+                        this.element = null;
+                    }
+                }, 300);
+            }
+        }
+
+        /**
+         * Utility function for debouncing
+         * @param {Function} func - Function to debounce
+         * @param {number} wait - Wait time in ms
+         * @returns {Function} Debounced function
+         */
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        /**
+         * Initialize the application when DOM is ready
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            // Create app instance
+            window.app = new GraphDocumentApp();
+        });
+    </script>
+</body>
+</html>

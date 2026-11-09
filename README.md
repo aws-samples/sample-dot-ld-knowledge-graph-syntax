@@ -109,6 +109,7 @@ Explore practical examples in the [`examples/`](examples/) directory:
 4. **[API Documentation](examples/04-api-documentation.md)** - Service dependencies
 5. **[Process Workflow](examples/05-process-workflow.md)** - Business processes
 6. **[Cross-Document Composition](examples/06-cross-document/)** - Multi-document graphs
+7. **[DOT-LD Visualization](examples/07-dot-ld-visualization/)** - Browser-based editor, renderer and graph viewer (reference implementation)
 
 ## Getting Started
 
